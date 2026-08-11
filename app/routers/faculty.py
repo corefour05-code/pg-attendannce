@@ -191,6 +191,9 @@ async def faculty_add_submit(request: Request):
     name = form.get("name", "").strip()
     department = form.get("department", "").strip() or None
     designation = form.get("designation", "").strip() or None
+    role = form.get("role", "faculty").strip()
+    if role not in ("faculty", "technician"):
+        role = "faculty"
     photo_urls = _collect_photo_data_urls(form)
 
     conn = get_connection()
@@ -203,8 +206,8 @@ async def faculty_add_submit(request: Request):
                 f"/faculty/add?error=Faculty ID '{faculty_id}' already exists", status_code=302
             )
         conn.execute(
-            "INSERT INTO faculty (faculty_id, name, department, designation) VALUES (?,?,?,?)",
-            (faculty_id, name, department or "", designation),
+            "INSERT INTO faculty (faculty_id, name, department, designation, role) VALUES (?,?,?,?,?)",
+            (faculty_id, name, department or "", designation, role),
         )
         saved = _save_faculty_embeddings(conn, faculty_id, photo_urls)
         conn.commit()
@@ -257,6 +260,9 @@ async def faculty_edit_submit(request: Request, faculty_id: str):
     name = form.get("name", "").strip()
     department = form.get("department", "").strip() or None
     designation = form.get("designation", "").strip() or None
+    role = form.get("role", "faculty").strip()
+    if role not in ("faculty", "technician"):
+        role = "faculty"
 
     new_faculty_id = form.get("faculty_id", faculty_id).strip()
     if not new_faculty_id:
@@ -281,8 +287,8 @@ async def faculty_edit_submit(request: Request, faculty_id: str):
             _rename_faculty_id(conn, faculty_id, new_faculty_id)
 
         conn.execute(
-            "UPDATE faculty SET name=?, department=?, designation=? WHERE faculty_id=?",
-            (name, department, designation, new_faculty_id),
+            "UPDATE faculty SET name=?, department=?, designation=?, role=? WHERE faculty_id=?",
+            (name, department, designation, role, new_faculty_id),
         )
         saved = _save_faculty_embeddings(conn, new_faculty_id, photo_urls) if photo_urls else 0
         conn.commit()

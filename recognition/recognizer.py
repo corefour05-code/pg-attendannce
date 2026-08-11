@@ -29,7 +29,7 @@ class FaceRecognizer:
         self.app = get_face_app()
         self.match_threshold = match_threshold
         self.match_margin = match_margin
-        self.identities: list[tuple[str, str]] = []  # (kind, id) pairs, kind is 'student'|'faculty'
+        self.identities: list[tuple[str, str, str | None]] = []  # (kind, id, role); role only set for faculty
         self.identity_key_arr = np.array([], dtype=object)
         self.matrix = np.zeros((0, EMBEDDING_DIM), dtype=np.float32)
         self.reload_embeddings()
@@ -40,11 +40,14 @@ class FaceRecognizer:
         conn = get_connection()
         try:
             student_rows = conn.execute("SELECT roll_no AS id, embedding FROM embeddings").fetchall()
-            faculty_rows = conn.execute("SELECT faculty_id AS id, embedding FROM faculty_embeddings").fetchall()
+            faculty_rows = conn.execute(
+                "SELECT fe.faculty_id AS id, fe.embedding AS embedding, f.role AS role "
+                "FROM faculty_embeddings fe JOIN faculty f ON f.faculty_id = fe.faculty_id"
+            ).fetchall()
         finally:
             conn.close()
 
-        rows = [("student", r) for r in student_rows] + [("faculty", r) for r in faculty_rows]
+        rows = [("student", r, None) for r in student_rows] + [("faculty", r, r["role"]) for r in faculty_rows]
 
         if not rows:
             self.identities = []
@@ -52,14 +55,14 @@ class FaceRecognizer:
             self.matrix = np.zeros((0, EMBEDDING_DIM), dtype=np.float32)
             return 0
 
-        self.identities = [(kind, r["id"]) for kind, r in rows]
-        self.identity_key_arr = np.array([f"{kind}:{r['id']}" for kind, r in rows], dtype=object)
+        self.identities = [(kind, r["id"], role) for kind, r, role in rows]
+        self.identity_key_arr = np.array([f"{kind}:{r['id']}" for kind, r, _ in rows], dtype=object)
         self.matrix = np.vstack(
-            [np.frombuffer(r["embedding"], dtype=np.float32) for _, r in rows]
+            [np.frombuffer(r["embedding"], dtype=np.float32) for _, r, _ in rows]
         ).astype(np.float32)
         return len(self.identities)
 
-    def match_embedding(self, embedding: np.ndarray) -> tuple[str | None, str | None, float]:
+    def match_embedding(self, embedding: np.ndarray) -> tuple[str | None, str | None, str | None, float]:
         """Cosine similarity via dot product (embeddings are L2-normalized by insightface).
 
         A match is only accepted if the best-scoring identity clears the absolute
@@ -71,15 +74,16 @@ class FaceRecognizer:
         enrolled pool grows (more identities = more chances for a look-alike to
         clear a flat threshold).
 
-        Returns (kind, id, best_score) where kind/id are None on no-match.
+        Returns (kind, id, role, best_score) where kind/id/role are None on no-match.
+        role is only set when kind is 'faculty'.
         """
         if self.matrix.shape[0] == 0:
-            return None, None, 0.0
+            return None, None, None, 0.0
 
         scores = self.matrix @ embedding
         best_idx = int(np.argmax(scores))
         best_score = float(scores[best_idx])
-        best_kind, best_id = self.identities[best_idx]
+        best_kind, best_id, best_role = self.identities[best_idx]
         best_key = f"{best_kind}:{best_id}"
 
         other_mask = self.identity_key_arr != best_key
@@ -89,14 +93,15 @@ class FaceRecognizer:
             best_score >= self.match_threshold
             and (best_score - runner_up_score) >= self.match_margin
         ):
-            return best_kind, best_id, best_score
-        return None, None, best_score
+            return best_kind, best_id, best_role, best_score
+        return None, None, None, best_score
 
     def recognize(self, frame: np.ndarray) -> tuple[list[dict], dict]:
         """Detect all faces in frame, match each against the embedding matrix.
 
         Returns (results, timing_ms) where each result is:
-            {'bbox': (x1,y1,x2,y2), 'kind': 'student'|'faculty'|None, 'identity': str, 'confidence': float}
+            {'bbox': (x1,y1,x2,y2), 'kind': 'student'|'faculty'|None, 'role': 'faculty'|'technician'|None,
+             'identity': str, 'confidence': float}
         and timing_ms has 'detect_embed_ms', 'match_ms', 'total_ms'.
         """
         t0 = time.perf_counter()
@@ -105,11 +110,12 @@ class FaceRecognizer:
 
         results = []
         for face in faces:
-            kind, identity, score = self.match_embedding(face.normed_embedding.astype(np.float32))
+            kind, identity, role, score = self.match_embedding(face.normed_embedding.astype(np.float32))
             results.append(
                 {
                     "bbox": tuple(face.bbox.tolist()),
                     "kind": kind,
+                    "role": role,
                     "identity": identity if identity else "unknown",
                     "confidence": score,
                 }

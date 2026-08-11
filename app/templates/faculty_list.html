@@ -50,7 +50,7 @@
 <div class="card" style="padding:0; overflow:hidden;">
   <table id="faculty-table">
     <thead>
-      <tr><th>Faculty ID</th><th>Name</th><th>Department</th><th>Designation</th><th>Action</th></tr>
+      <tr><th>Faculty ID</th><th>Name</th><th>Department</th><th>Designation</th><th>Role</th><th>Action</th></tr>
     </thead>
     <tbody>
       {% for f in faculty %}
@@ -59,13 +59,14 @@
         <td>{{ f.name }}</td>
         <td>{{ f.department }}</td>
         <td>{{ f.designation or '-' }}</td>
+        <td>{{ 'Technician' if f.role == 'technician' else 'Faculty' }}</td>
         <td>
           <a class="btn btn-outline" style="padding:0.35rem 0.6rem;" href="/faculty/{{ f.faculty_id }}/edit"><i class="ph ph-note-pencil"></i></a>
           <button class="btn btn-danger" style="padding:0.35rem 0.6rem;" onclick="deleteFaculty('{{ f.faculty_id }}')"><i class="ph ph-trash"></i></button>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:2rem;">No faculty registered yet.</td></tr>
+      <tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:2rem;">No faculty registered yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

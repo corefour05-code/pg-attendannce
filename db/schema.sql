@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS faculty (
     faculty_id  TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
     department  TEXT NOT NULL,
-    designation TEXT
+    designation TEXT,
+    role        TEXT NOT NULL DEFAULT 'faculty' CHECK (role IN ('faculty', 'technician'))
 );
 
 CREATE TABLE IF NOT EXISTS faculty_embeddings (

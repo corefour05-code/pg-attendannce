@@ -94,6 +94,10 @@ def _migrate_post(conn) -> None:
         if col not in cols:
             conn.execute(f"ALTER TABLE students ADD COLUMN {col} TEXT")
 
+    faculty_cols = _table_columns(conn, "faculty")
+    if "role" not in faculty_cols:
+        conn.execute("ALTER TABLE faculty ADD COLUMN role TEXT NOT NULL DEFAULT 'faculty'")
+
 
 def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)

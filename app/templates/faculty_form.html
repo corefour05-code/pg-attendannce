@@ -27,6 +27,12 @@
     <label>Designation
       <input type="text" name="designation" class="form-control" value="{{ faculty.designation if faculty else '' }}" />
     </label>
+    <label>Role *
+      <select name="role" class="form-control" required>
+        <option value="faculty" {{ 'selected' if not faculty or faculty.role == 'faculty' else '' }}>Faculty</option>
+        <option value="technician" {{ 'selected' if faculty and faculty.role == 'technician' else '' }}>Technician</option>
+      </select>
+    </label>
   </div>
 
   {% if mode == 'add' %}

@@ -132,12 +132,18 @@ async def scan(request: Request, image: UploadFile = File(...)):
         if kind == "student":
             person = conn.execute("SELECT name FROM students WHERE roll_no=?", (identity,)).fetchone()
         else:
-            person = conn.execute("SELECT name FROM faculty WHERE faculty_id=?", (identity,)).fetchone()
+            person = conn.execute(
+                "SELECT name, role FROM faculty WHERE faculty_id=?", (identity,)
+            ).fetchone()
 
         if person is None:
             return {"faces": results, "name": None}
 
-        display_name = person["name"] if kind == "student" else f"Faculty ({person['name']})"
+        if kind == "student":
+            display_name = person["name"]
+        else:
+            role_label = "Technician" if person["role"] == "technician" else "Faculty"
+            display_name = f"{role_label} ({person['name']})"
 
         if lab_id is None:
             # No single lab to log attendance against — report who was recognized
@@ -187,7 +193,8 @@ def scanner_logs(request: Request):
             "LEFT JOIN periods pout ON pout.id = a.out_period_id "
             "WHERE a.lab_id=? AND a.session_date=? "
             "UNION ALL "
-            "SELECT 'Faculty (' || f.name || ')' AS name, f.department AS department, "
+            "SELECT (CASE WHEN f.role='technician' THEN 'Technician (' ELSE 'Faculty (' END) || f.name || ')' "
+            "AS name, f.department AS department, "
             "NULL AS section, f.designation AS batch, "
             "fa.in_time, pin.period_name AS period_in, fa.session_date AS in_date, "
             "fa.out_time, pout.period_name AS period_out, fa.out_date "

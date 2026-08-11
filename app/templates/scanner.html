@@ -232,7 +232,7 @@ function drawBoxes(faces) {
     const known = f.identity !== 'unknown';
     ctx.strokeStyle = known ? '#21e378' : '#DC3545';
     ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-    const prefix = f.kind === 'faculty' ? 'Faculty:' : '';
+    const prefix = f.kind === 'faculty' ? (f.role === 'technician' ? 'Technician:' : 'Faculty:') : '';
     const label = known ? `${prefix}${f.identity} (${f.confidence.toFixed(2)})` : 'unknown';
     ctx.fillStyle = known ? '#21e378' : '#DC3545';
     ctx.fillText(label, x1, Math.max(16, y1 - 8));
