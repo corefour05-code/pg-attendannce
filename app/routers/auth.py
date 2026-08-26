@@ -20,6 +20,24 @@ from app.templating import templates
 
 router = APIRouter()
 
+DEVELOPERS_DIR = Path(__file__).resolve().parent.parent / "static" / "images" / "developers"
+
+# Credits shown from the login page's "Developers" card. Photo is optional —
+# a dev without a file yet just gets an initials placeholder in the template.
+DEVELOPERS = [
+    {"name": "Nivesh Varun M", "batch": "2023-2027", "photo": "nivesh.png", "linkedin": "https://www.linkedin.com/in/nivesh-varun"},
+    {"name": "Santhosh B", "batch": "2023-2027", "photo": "santhosh.jpg", "linkedin": "https://www.linkedin.com/in/santhosh-balaji-371a0429a"},
+    {"name": "Rohith R", "batch": "2023-2027", "photo": "rohith.jpg", "linkedin": "https://www.linkedin.com/in/rohith-r-it-student"},
+]
+
+
+def _developers_context() -> list[dict]:
+    devs = []
+    for d in DEVELOPERS:
+        has_photo = (DEVELOPERS_DIR / d["photo"]).is_file()
+        devs.append({**d, "photo_url": f"/static/images/developers/{d['photo']}" if has_photo else None})
+    return devs
+
 
 def _dispatch_redirect(user: dict) -> RedirectResponse:
     if user["role"] == "admin":
@@ -44,7 +62,7 @@ def welcome(request: Request):
 
 @router.get("/login")
 def login_get(request: Request):
-    return templates.TemplateResponse(request, "login.html", {"error": None})
+    return templates.TemplateResponse(request, "login.html", {"error": None, "developers": _developers_context()})
 
 
 @router.post("/login")
@@ -61,7 +79,7 @@ def login_post(
 
     def error(msg: str):
         return templates.TemplateResponse(
-            request, "login.html", {"error": msg}, status_code=400
+            request, "login.html", {"error": msg, "developers": _developers_context()}, status_code=400
         )
 
     if row is None or not verify_password(password, row["password_hash"]):

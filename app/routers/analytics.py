@@ -236,6 +236,70 @@ def _faculty_summary(conn, from_date, to_date, lab_id):
     return len(unique)
 
 
+def _merge_faculty_sessions(rows):
+    """Same continuous-sitting merge as _merge_into_sessions, keyed by
+    faculty_id instead of roll_no (faculty rows have no roll_no)."""
+    sessions = []
+    current = None
+    current_key = None
+    for r in rows:
+        key = (r["faculty_id"], r["lab_id"], r["session_date"])
+        if current is not None and key == current_key:
+            prev_out = _parse_dt(current["out_time"])
+            next_in = _parse_dt(r["in_time"])
+            gap_ok = (
+                prev_out is not None
+                and next_in is not None
+                and (next_in - prev_out).total_seconds() / 60 <= ANALYTICS_SESSION_GAP_MINUTES
+            )
+            if gap_ok:
+                current["out_time"] = r["out_time"]
+                current["out_period_id"] = r["out_period_id"]
+                continue
+        current = dict(r)
+        current_key = key
+        sessions.append(current)
+    return sessions
+
+
+def _faculty_sessions(conn, from_date, to_date, lab_id):
+    """Per-session faculty presence, so the Analytics page can answer "who
+    was in which lab during which period" rather than just a headcount."""
+    sql = (
+        "SELECT fa.faculty_id, fa.session_date, fa.lab_id, fa.in_time, fa.out_time, "
+        "fa.in_period_id, fa.out_period_id, "
+        "f.name AS name, f.designation AS designation, f.role AS role, "
+        "p.period_name AS period_name, l.name AS lab_name "
+        "FROM faculty_attendance fa "
+        "JOIN faculty f ON f.faculty_id = fa.faculty_id "
+        "JOIN labs l ON l.id = fa.lab_id "
+        "LEFT JOIN periods p ON p.id = fa.in_period_id "
+        "WHERE fa.session_date BETWEEN ? AND ?"
+    )
+    params: list = [from_date, to_date]
+    if lab_id is not None:
+        sql += " AND fa.lab_id = ?"
+        params.append(lab_id)
+    sql += " ORDER BY fa.faculty_id, fa.lab_id, fa.session_date, fa.in_time"
+    rows = conn.execute(sql, params).fetchall()
+    sessions = _merge_faculty_sessions(rows)
+
+    result = [{
+        "date": s["session_date"],
+        "period": s["period_name"] or "Unscheduled",
+        "lab": s["lab_name"],
+        "lab_id": s["lab_id"],
+        "faculty_id": s["faculty_id"],
+        "name": s["name"],
+        "designation": s["designation"] or "-",
+        "role": s["role"],
+        "in_time": s["in_time"],
+        "out_time": s["out_time"],
+    } for s in sessions]
+    result.sort(key=lambda r: (r["date"], r["period"], r["lab"], r["name"]))
+    return result
+
+
 @router.get("/analytics")
 def analytics_page(request: Request):
     user, redirect = require_main_admin(request)
@@ -249,6 +313,7 @@ def analytics_page(request: Request):
         labs = conn.execute("SELECT * FROM labs ORDER BY name").fetchall()
         result = _classify(conn, from_date, to_date, lab_id, threshold)
         faculty_count = _faculty_summary(conn, from_date, to_date, lab_id)
+        faculty_sessions = _faculty_sessions(conn, from_date, to_date, lab_id)
         class_strength = _class_strength(conn, from_date, to_date, lab_id)
     finally:
         conn.close()
@@ -277,6 +342,8 @@ def analytics_page(request: Request):
         "selected_lab_id": lab_id,
         "threshold": threshold,
         "faculty_count": faculty_count,
+        "faculty_sessions": faculty_sessions,
+        "faculty_periods": sorted({s["period"] for s in faculty_sessions}),
         "class_strength": class_strength,
         "lab_labels": lab_labels,
         "lab_values": lab_values,

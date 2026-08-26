@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <title>Login - PSNA Lab Attendance</title>
 <link rel="stylesheet" href="/static/design-system.css" />
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
 <style>
   body {
     display: flex;
@@ -25,6 +26,101 @@
   .auth-card h2 { margin: 0 0 1.5rem; }
   .auth-card form { display: flex; flex-direction: column; gap: 0.9rem; text-align: left; }
   .auth-card .helper { margin-top: 1.25rem; font-size: 0.8rem; color: var(--text-muted); }
+
+  .dev-modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(15,20,25,0.6);
+    backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+    z-index: 50;
+    padding: 1.5rem;
+  }
+  .dev-modal-overlay.open { display: flex; }
+  .dev-modal-panel {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 2rem;
+    max-width: 640px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+  }
+  .dev-modal-panel h3 { margin: 0 0 0.25rem; }
+  .dev-modal-panel .dev-subtitle { color: var(--text-muted); font-size: 0.85rem; margin: 0 0 1.5rem; }
+  .dev-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1.25rem;
+  }
+  .dev-card {
+    background: #F8FAFC;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .dev-card:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(0,0,0,0.1); }
+  .dev-photo {
+    width: 96px; height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin: 0 auto 0.9rem;
+    display: block;
+    border: 3px solid var(--white);
+    box-shadow: 0 0 0 3px var(--primary-blue);
+  }
+  .dev-photo-placeholder {
+    width: 96px; height: 96px;
+    border-radius: 50%;
+    margin: 0 auto 0.9rem;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--primary-blue);
+    color: var(--white);
+    font-size: 1.6rem;
+    font-weight: 700;
+    box-shadow: 0 0 0 3px var(--primary-blue);
+  }
+  .dev-name { font-weight: 600; margin-bottom: 0.15rem; }
+  .dev-batch { font-size: 0.78rem; color: var(--text-muted); }
+  .dev-modal-close {
+    display: block;
+    margin: 1.75rem auto 0;
+  }
+
+  .dev-detail { text-align: center; }
+  .dev-detail .dev-photo,
+  .dev-detail .dev-photo-placeholder {
+    width: 140px; height: 140px;
+    font-size: 2.4rem;
+  }
+  .dev-detail .dev-name { font-size: 1.15rem; margin-top: 0.25rem; }
+  .dev-detail .dev-batch { font-size: 0.85rem; margin-bottom: 1.1rem; }
+  .dev-detail-linkedin {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1.1rem;
+    border-radius: 999px;
+    background: #0A66C2;
+    color: var(--white) !important;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .dev-detail-linkedin:hover { opacity: 0.9; }
+  .dev-back-link {
+    display: inline-block;
+    margin-bottom: 1.25rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .dev-back-link:hover { color: var(--primary-blue); }
 </style>
 </head>
 <body>
@@ -40,7 +136,66 @@
       </label>
       <button type="submit" class="btn btn-primary btn-block">Login</button>
     </form>
-    <div class="helper"</div>
+    <button type="button" class="btn btn-outline btn-block" style="margin-top:0.75rem;" onclick="document.getElementById('dev-modal').classList.add('open')">Developers</button>
   </div>
+
+  <div class="dev-modal-overlay" id="dev-modal" onclick="if (event.target === this) closeDevModal()">
+    <div class="dev-modal-panel">
+      <div id="dev-grid-view">
+        <h3>Developers</h3>
+        <p class="dev-subtitle">Built by the 2023-2027 batch. Click a photo for details.</p>
+        <div class="dev-grid">
+          {% for dev in developers %}
+          <div class="dev-card" onclick='showDevDetail({{ dev.name|tojson }}, {{ dev.batch|tojson }}, {{ (dev.photo_url or "")|tojson }}, {{ dev.linkedin|tojson }})'>
+            {% if dev.photo_url %}
+            <img class="dev-photo" src="{{ dev.photo_url }}" alt="{{ dev.name }}" />
+            {% else %}
+            <div class="dev-photo-placeholder">{{ dev.name[0] }}</div>
+            {% endif %}
+            <div class="dev-name">{{ dev.name }}</div>
+            <div class="dev-batch">{{ dev.batch }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        <button type="button" class="btn btn-primary dev-modal-close" onclick="closeDevModal()">Close</button>
+      </div>
+
+      <div id="dev-detail-view" class="dev-detail" style="display:none;">
+        <a class="dev-back-link" onclick="showDevGrid()">&larr; Back to all developers</a>
+        <div id="dev-detail-photo-wrap"></div>
+        <div class="dev-name" id="dev-detail-name"></div>
+        <div class="dev-batch" id="dev-detail-batch"></div>
+        <a id="dev-detail-link" class="dev-detail-linkedin" href="#" target="_blank" rel="noopener">
+          <i class="ph ph-linkedin-logo"></i> View LinkedIn Profile
+        </a>
+        <div>
+          <button type="button" class="btn btn-primary dev-modal-close" onclick="closeDevModal()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showDevDetail(name, batch, photoUrl, linkedin) {
+      document.getElementById('dev-grid-view').style.display = 'none';
+      const detail = document.getElementById('dev-detail-view');
+      detail.style.display = 'block';
+      document.getElementById('dev-detail-name').textContent = name;
+      document.getElementById('dev-detail-batch').textContent = batch;
+      document.getElementById('dev-detail-link').href = linkedin;
+      const wrap = document.getElementById('dev-detail-photo-wrap');
+      wrap.innerHTML = photoUrl
+        ? `<img class="dev-photo" src="${photoUrl}" alt="${name}" />`
+        : `<div class="dev-photo-placeholder">${name.charAt(0)}</div>`;
+    }
+    function showDevGrid() {
+      document.getElementById('dev-detail-view').style.display = 'none';
+      document.getElementById('dev-grid-view').style.display = 'block';
+    }
+    function closeDevModal() {
+      document.getElementById('dev-modal').classList.remove('open');
+      showDevGrid();
+    }
+  </script>
 </body>
 </html>

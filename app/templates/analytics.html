@@ -89,6 +89,45 @@
   </div>
 </div>
 
+<div class="card" style="padding:0; overflow:hidden; margin-bottom:1.5rem;">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin:1.5rem 1.5rem 0;">
+    <h3 style="margin:0;">Faculty in Lab</h3>
+    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+      <select id="faculty-period-filter" class="form-control" style="width:180px;">
+        <option value="">All Periods</option>
+        {% for p in faculty_periods %}
+        <option value="{{ p }}">{{ p }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" id="faculty-search" class="form-control" style="width:220px;" placeholder="Search name/ID" />
+    </div>
+  </div>
+  <p style="color: var(--text-muted); margin:0.25rem 1.5rem 1rem;">
+    Who was in which lab, during which period, for the selected range. Pick a period above to see just that slot.
+  </p>
+  <div style="overflow-x:auto;">
+    <table id="faculty-table">
+      <thead><tr><th>Date</th><th>Period</th><th>Laboratory</th><th>ID</th><th>Name</th><th>Designation</th><th>In</th><th>Out</th></tr></thead>
+      <tbody>
+        {% for f in faculty_sessions %}
+        <tr data-period="{{ f.period }}">
+          <td>{{ f.date }}</td>
+          <td>{{ f.period }}</td>
+          <td><span class="badge badge-{{ lab_badge_color(f.lab_id) }}">{{ f.lab }}</span></td>
+          <td>{{ f.faculty_id }}</td>
+          <td>{{ f.name }}</td>
+          <td>{{ f.designation }}{{ ' (Technician)' if f.role == 'technician' else '' }}</td>
+          <td>{{ f.in_time | dt_time12 }}</td>
+          <td>{{ f.out_time | dt_time12 if f.out_time else '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:2rem;">No faculty attendance for this range.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <div class="card" style="margin-bottom:1.5rem;">
   <h3 style="margin-top:0;">Attendance by Laboratory</h3>
   <canvas id="lab-chart" height="120"></canvas>
@@ -158,6 +197,19 @@ document.getElementById('individual-search').addEventListener('keyup', function 
     row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
 });
+
+function filterFacultyTable() {
+  const q = document.getElementById('faculty-search').value.toLowerCase();
+  const period = document.getElementById('faculty-period-filter').value;
+  document.querySelectorAll('#faculty-table tbody tr').forEach((row) => {
+    if (!row.cells || row.cells.length < 8) return;
+    const matchesText = row.textContent.toLowerCase().includes(q);
+    const matchesPeriod = !period || row.dataset.period === period;
+    row.style.display = (matchesText && matchesPeriod) ? '' : 'none';
+  });
+}
+document.getElementById('faculty-search').addEventListener('keyup', filterFacultyTable);
+document.getElementById('faculty-period-filter').addEventListener('change', filterFacultyTable);
 
 const pieLabels = {{ pie_labels | tojson }};
 const pieValues = {{ pie_values | tojson }};

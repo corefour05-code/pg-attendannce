@@ -213,12 +213,17 @@ const canvas = document.createElement('canvas');
 // long detection+recognition takes on the server.
 const POLL_GAP_MS = 150;
 const POPUP_DURATION_MS = 2500;
+// Unknown faces linger in frame across many polls — this keeps the voice
+// alert from repeating every ~150ms while still re-announcing if the
+// person stays put.
+const UNKNOWN_ALERT_COOLDOWN_MS = 4000;
 
 let tracking = false;
 let locked = false;
 let scanScheduled = null;
 let unlockTimer = null;
 let logsTimer = null;
+let unknownAlertActive = false;
 
 function drawBoxes(faces) {
   overlay.width = video.videoWidth || 640;
@@ -258,6 +263,13 @@ function showRecognizedPopup(name, status) {
   speak(`${name} ${status}`);
 }
 
+function announceUnknown() {
+  if (unknownAlertActive) return;
+  unknownAlertActive = true;
+  speak('Unknown');
+  setTimeout(() => { unknownAlertActive = false; }, UNKNOWN_ALERT_COOLDOWN_MS);
+}
+
 function hideRecognizedPopup() {
   popup.classList.remove('visible');
   drawBoxes([]);
@@ -288,6 +300,9 @@ async function scanTick() {
     } else {
       statusBanner.textContent = 'Name: waiting ...';
       statusBanner.className = 'status-banner tracking';
+      if ((data.faces || []).some((f) => f.identity === 'unknown')) {
+        announceUnknown();
+      }
     }
   } catch (e) {
     // transient network error — leave last drawn state as-is
