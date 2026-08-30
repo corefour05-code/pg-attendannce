@@ -27,6 +27,19 @@
   .auth-card form { display: flex; flex-direction: column; gap: 0.9rem; text-align: left; }
   .auth-card .helper { margin-top: 1.25rem; font-size: 0.8rem; color: var(--text-muted); }
 
+  .dev-link {
+    display: inline-block;
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .dev-link:hover { color: var(--primary-blue); }
+
   .dev-modal-overlay {
     display: none;
     position: fixed; inset: 0;
@@ -136,7 +149,7 @@
       </label>
       <button type="submit" class="btn btn-primary btn-block">Login</button>
     </form>
-    <button type="button" class="btn btn-outline btn-block" style="margin-top:0.75rem;" onclick="document.getElementById('dev-modal').classList.add('open')">Developers</button>
+    <button type="button" class="dev-link" onclick="document.getElementById('dev-modal').classList.add('open')">Developers</button>
   </div>
 
   <div class="dev-modal-overlay" id="dev-modal" onclick="if (event.target === this) closeDevModal()">

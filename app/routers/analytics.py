@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from fastapi import APIRouter, Request
 
-from app.deps import admin_template_context, require_main_admin
+from app.deps import admin_template_context, get_developers_context, require_main_admin
 from app.templating import templates
 from config import ANALYTICS_SESSION_GAP_MINUTES, LAB_CLASS_MIN_STUDENTS
 from db.connection import get_connection
@@ -336,6 +336,7 @@ def analytics_page(request: Request):
     context = {
         **admin_template_context(user),
         "active_nav": "analytics",
+        "developers": get_developers_context(),
         "labs": labs,
         "from_date": from_date,
         "to_date": to_date,

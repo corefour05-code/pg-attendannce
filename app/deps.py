@@ -3,10 +3,30 @@ via FastAPI Depends) so an unauthenticated request can simply return a redirect
 instead of a raised exception.
 """
 
+from pathlib import Path
+
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
 from db.connection import get_connection
+
+DEVELOPERS_DIR = Path(__file__).resolve().parent / "static" / "images" / "developers"
+
+# Credits shown from the "Developers" link. Photo is optional — a dev
+# without a file yet just gets an initials placeholder in the template.
+DEVELOPERS = [
+    {"name": "Nivesh Varun M", "batch": "2023-2027", "photo": "nivesh.png", "linkedin": "https://www.linkedin.com/in/nivesh-varun"},
+    {"name": "Santhosh B", "batch": "2023-2027", "photo": "santhosh.jpg", "linkedin": "https://www.linkedin.com/in/santhosh-balaji-371a0429a"},
+    {"name": "Rohith R", "batch": "2023-2027", "photo": "rohith.jpg", "linkedin": "https://www.linkedin.com/in/rohith-r-it-student"},
+]
+
+
+def get_developers_context() -> list[dict]:
+    devs = []
+    for d in DEVELOPERS:
+        has_photo = (DEVELOPERS_DIR / d["photo"]).is_file()
+        devs.append({**d, "photo_url": f"/static/images/developers/{d['photo']}" if has_photo else None})
+    return devs
 
 
 def get_session_user(request: Request) -> dict | None:
