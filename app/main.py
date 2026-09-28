@@ -13,7 +13,6 @@ from starlette.middleware.sessions import SessionMiddleware
 from config import SECRET_KEY
 
 from app import state
-from app.routers import analytics as analytics_router
 from app.routers import auth as auth_router
 from app.routers import capture as capture_router
 from app.routers import curfew as curfew_router
@@ -49,14 +48,9 @@ async def start_curfew_scheduler() -> None:
                 print(f"[curfew] scheduler error: {e}")
             await asyncio.sleep(CURFEW_CHECK_INTERVAL_SECONDS)
 
-    # asyncio only holds a weak reference to a bare create_task() result — with
-    # nothing else referencing it, the task can be garbage-collected before it
-    # ever runs. Stashing it on app.state keeps a strong reference alive for
-    # the process lifetime.
     app.state.curfew_scheduler_task = asyncio.create_task(_loop())
 
 
-app.include_router(analytics_router.router)
 app.include_router(auth_router.router)
 app.include_router(capture_router.router)
 app.include_router(residents_router.router)

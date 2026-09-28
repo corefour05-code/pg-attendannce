@@ -42,16 +42,6 @@ MATCH_MARGIN = 0.05                    # best match must beat the best *other* i
                                         # against false accepts as the enrolled pool grows
 MIN_FACE_SIZE_PX = 60                  # reject tiny/far-away detections
 
-# --- Analytics ---
-# A resident's same-day attendance rows are merged into one session when the
-# gap between an OUT and the next IN is within this many minutes — treated as
-# a short break (stepping out and back in), not a separate visit.
-ANALYTICS_SESSION_GAP_MINUTES = 15
-
-# Hour (24h) after which an IN scan counts as a "late entry" on the Analytics
-# page — the hostel-relevant curfew-violation signal. Overridable per-request.
-LATE_ENTRY_CUTOFF_HOUR = 22
-
 # --- Enrollment ---
 ENROLLMENT_SHOTS_PER_STUDENT = 5
 ENROLLMENT_ANGLE_LABELS = ["center", "left", "right", "up", "down"]

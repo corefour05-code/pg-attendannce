@@ -86,11 +86,6 @@
 
         {% if is_admin %}
         <div class="nav-group">
-          <div class="nav-group-label">Analytics</div>
-          <a class="nav-link {{ 'active' if active_nav == 'analytics' else '' }}" href="/analytics"><i class="ph ph-chart-pie"></i><span>Analytics</span></a>
-        </div>
-
-        <div class="nav-group">
           <div class="nav-group-label">Resident Controls</div>
           <a class="nav-link {{ 'active' if active_nav == 'residents' else '' }}" href="/residents"><i class="ph ph-users"></i><span>Residents Info</span></a>
           <a class="nav-link {{ 'active' if active_nav == 'resident_add' else '' }}" href="/residents/add"><i class="ph ph-user-plus"></i><span>Add New Resident</span></a>
