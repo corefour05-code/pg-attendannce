@@ -27,7 +27,7 @@ from app.routers import users as users_router
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 CURFEW_CHECK_INTERVAL_SECONDS = 20
 
-app = FastAPI(title="PG Hostel Attendance System")
+app = FastAPI(title="Vaagai Womens Hostel Attendance System")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 
 

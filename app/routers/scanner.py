@@ -89,7 +89,7 @@ def scanner_page(request: Request):
         settings = conn.execute("SELECT hostel_name FROM settings WHERE id=1").fetchone()
     finally:
         conn.close()
-    hostel_name = settings["hostel_name"] if settings else "PG Hostel"
+    hostel_name = settings["hostel_name"] if settings else "Vaagai Womens Hostel"
 
     return templates.TemplateResponse(request, "scanner.html", {"hostel_name": hostel_name})
 

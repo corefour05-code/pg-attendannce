@@ -59,6 +59,6 @@ DEFAULT_GATE_PASSWORD = "clear123"     # default "Clear Gate" password, stored i
 EDIT_RECAPTURE_SHOTS = 2               # photos required when re-capturing faces on Edit pages
 
 # --- Seed (db/seed.py) ---
-HOSTEL_NAME = "PG Hostel"
+HOSTEL_NAME = "Vaagai Womens Hostel"
 SEED_ADMIN_USERNAME = "admin"
 SEED_ADMIN_PASSWORD = "admin123"       # change via Manage Users after first login

@@ -4,7 +4,7 @@ PRAGMA foreign_keys = ON;
 -- password required to bulk-mark everyone OUT from the scanner page.
 CREATE TABLE IF NOT EXISTS settings (
     id             INTEGER PRIMARY KEY CHECK (id = 1),
-    hostel_name    TEXT NOT NULL DEFAULT 'PG Hostel',
+    hostel_name    TEXT NOT NULL DEFAULT 'Vaagai Womens Hostel',
     gate_password  TEXT NOT NULL DEFAULT 'clear123'
 );
 
