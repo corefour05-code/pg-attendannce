@@ -1,0 +1,41 @@
+{% extends "base_admin.html" %}
+{% block title %}Manage Curfew Time{% endblock %}
+{% block content %}
+<h1>Manage Curfew Time</h1>
+<p style="color: var(--text-muted);">
+  At each time below, every resident and staff member still marked IN is automatically marked
+  OUT. Add as many times as you need.
+</p>
+
+<div class="card" style="margin-bottom:1.5rem; max-width:500px;">
+  <h3 style="margin-top:0;">Add New Curfew Time</h3>
+  <form method="post" action="/curfew-times/add" style="display:grid; grid-template-columns: 1fr auto; gap:0.75rem; align-items:end;">
+    <label style="margin:0;">Time
+      <input type="time" name="time" class="form-control" required />
+    </label>
+    <button type="submit" class="btn btn-primary">ADD TIME</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Configured Curfew Times</h3>
+  <table>
+    <thead><tr><th>Time</th><th>Last Applied</th><th>Action</th></tr></thead>
+    <tbody>
+      {% for t in curfew_times %}
+      <tr>
+        <td>{{ t.time | time12 }}</td>
+        <td>{{ t.last_triggered_date or 'Not yet applied' }}</td>
+        <td>
+          <form method="post" action="/curfew-times/{{ t.id }}/delete" onsubmit="return confirm('Remove curfew time {{ t.time | time12 }}?');" style="display:inline;">
+            <button type="submit" class="btn btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:2rem;">No curfew times configured yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

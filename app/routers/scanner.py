@@ -1,7 +1,6 @@
-"""Phase 6: standalone live scanner page + attendance marking (IN on
-recognition, bulk OUT via Clear Lab). Matches both students and faculty
-against the same live camera feed, marking each into its own attendance
-table."""
+"""Standalone live scanner page + attendance marking (Consecutive OUT/IN movement events).
+Matches both residents and staff against the same live camera feed, logging each punch
+into its respective attendance table."""
 
 import sys
 from datetime import date, datetime, timedelta
@@ -16,73 +15,67 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from app import state
 from app.deps import require_login
 from app.templating import templates
-from config import DEDUP_WINDOW_MINUTES
 from core.time_format import format_datetime_time_12h
 from db.connection import get_connection
 
 router = APIRouter()
 
+# 1-minute debounce window (in seconds) to prevent mistaken consecutive scans
+SCAN_COOLDOWN_SECONDS = 60
 
-def _current_period_id(conn) -> int | None:
-    now = datetime.now().strftime("%H:%M")
-    row = conn.execute(
-        "SELECT id FROM periods WHERE start_time<=? AND end_time>=? LIMIT 1",
-        (now, now),
-    ).fetchone()
-    return row["id"] if row else None
+
+def _parse_punch_datetime(dt_str: str) -> datetime:
+    try:
+        return datetime.fromisoformat(dt_str)
+    except ValueError:
+        return datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
 
 
 def _toggle_attendance(
-    conn, table: str, id_col: str, identity: str, lab_id: int, today: str, period_id: int | None
-) -> tuple[str, bool]:
-    """Shared IN/OUT dedup toggle, used for both the student `attendance`
-    table and the `faculty_attendance` table (same shape, different owner
-    column). `table`/`id_col` are always one of two hardcoded literals from
-    call sites below, never user input."""
-    last = conn.execute(
-        f"SELECT * FROM {table} WHERE {id_col}=? AND lab_id=? AND session_date=? "
-        "ORDER BY id DESC LIMIT 1",
-        (identity, lab_id, today),
+    conn, table: str, id_col: str, identity: str, kind: str
+) -> tuple[str, bool, bool, int]:
+    """Toggle consecutive OUT/IN movement events with a 1-minute debounce cooldown.
+    
+    For residents (who live in PG):
+    - First scan of any calendar day is ALWAYS 'OUT' (leaving the hostel).
+    - If last scan today was 'OUT' -> next scan is 'IN' (returning).
+    - If last scan today was 'IN' -> next scan is 'OUT' (leaving again).
+    
+    For staff:
+    - First scan of day is 'IN' (reporting for duty).
+    - If last scan today was 'IN' -> next is 'OUT'.
+    
+    Returns:
+        (status, marked, cooldown_active, remaining_seconds)
+    """
+    now = datetime.now()
+    now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+    today_str = now.strftime("%Y-%m-%d")
+
+    last_today = conn.execute(
+        f"SELECT direction, punch_time FROM {table} WHERE {id_col}=? AND punch_date=? ORDER BY id DESC LIMIT 1",
+        (identity, today_str),
     ).fetchone()
 
-    now = datetime.now()
-    now_str = now.isoformat(sep=" ", timespec="seconds")
+    if last_today is None:
+        # First scan of today: residents always step OUT; staff report IN
+        next_direction = "OUT" if kind == "resident" else "IN"
+    else:
+        last_dt = _parse_punch_datetime(last_today["punch_time"])
+        elapsed = (now - last_dt).total_seconds()
+        if elapsed < SCAN_COOLDOWN_SECONDS:
+            remaining = int(SCAN_COOLDOWN_SECONDS - elapsed)
+            return last_today["direction"].lower(), False, True, max(1, remaining)
 
-    if last is None:
-        # first scan today -> mark IN
-        conn.execute(
-            f"INSERT INTO {table} ({id_col}, lab_id, session_date, in_time, in_period_id) "
-            "VALUES (?,?,?,?,?)",
-            (identity, lab_id, today, now_str, period_id),
-        )
-        conn.commit()
-        return "in", True
+        last_dir = last_today["direction"].upper()
+        next_direction = "IN" if last_dir == "OUT" else "OUT"
 
-    if last["out_time"] is None:
-        # currently IN -> only flip to OUT once the dedup window has passed,
-        # otherwise a rescan within the window is treated as accidental
-        in_dt = datetime.fromisoformat(last["in_time"])
-        if now - in_dt >= timedelta(minutes=DEDUP_WINDOW_MINUTES):
-            conn.execute(
-                f"UPDATE {table} SET out_time=?, out_date=?, out_period_id=? WHERE id=?",
-                (now_str, today, period_id, last["id"]),
-            )
-            conn.commit()
-            return "out", True
-        return "in", False
-
-    # currently OUT -> a rescan after the dedup window starts a fresh IN
-    # session (re-entering the lab); within the window it's a no-op.
-    out_dt = datetime.fromisoformat(last["out_time"])
-    if now - out_dt >= timedelta(minutes=DEDUP_WINDOW_MINUTES):
-        conn.execute(
-            f"INSERT INTO {table} ({id_col}, lab_id, session_date, in_time, in_period_id) "
-            "VALUES (?,?,?,?,?)",
-            (identity, lab_id, today, now_str, period_id),
-        )
-        conn.commit()
-        return "in", True
-    return "out", False
+    conn.execute(
+        f"INSERT INTO {table} ({id_col}, direction, punch_time, punch_date) VALUES (?,?,?,?)",
+        (identity, next_direction, now_str, today_str),
+    )
+    conn.commit()
+    return next_direction.lower(), True, False, 0
 
 
 @router.get("/scanner")
@@ -91,16 +84,14 @@ def scanner_page(request: Request):
     if redirect:
         return redirect
 
-    lab_name = "All Labs"
-    if user["lab_id"] is not None:
-        conn = get_connection()
-        try:
-            row = conn.execute("SELECT name FROM labs WHERE id=?", (user["lab_id"],)).fetchone()
-            lab_name = row["name"] if row else "Unknown Lab"
-        finally:
-            conn.close()
+    conn = get_connection()
+    try:
+        settings = conn.execute("SELECT hostel_name FROM settings WHERE id=1").fetchone()
+    finally:
+        conn.close()
+    hostel_name = settings["hostel_name"] if settings else "PG Hostel"
 
-    return templates.TemplateResponse(request, "scanner.html", {"lab_name": lab_name})
+    return templates.TemplateResponse(request, "scanner.html", {"hostel_name": hostel_name})
 
 
 @router.post("/api/scan")
@@ -108,7 +99,6 @@ async def scan(request: Request, image: UploadFile = File(...)):
     user, redirect = require_login(request)
     if redirect:
         return {"faces": [], "name": None, "error": "not logged in"}
-    lab_id = user["lab_id"]
 
     recognizer = state.get_recognizer()
     data = await image.read()
@@ -117,8 +107,6 @@ async def scan(request: Request, image: UploadFile = File(...)):
     if frame is None:
         return {"faces": [], "name": None}
 
-    # Detection/recognition always runs so the box + name show up even without
-    # a single lab context (e.g. a super-admin browsing with lab_id=None).
     results, _timing = recognizer.recognize(frame)
     matched = next((r for r in results if r["identity"] != "unknown"), None)
 
@@ -129,35 +117,26 @@ async def scan(request: Request, image: UploadFile = File(...)):
 
     conn = get_connection()
     try:
-        if kind == "student":
-            person = conn.execute("SELECT name FROM students WHERE roll_no=?", (identity,)).fetchone()
+        if kind == "resident":
+            person = conn.execute(
+                "SELECT name FROM residents WHERE resident_id=?", (identity,)
+            ).fetchone()
         else:
             person = conn.execute(
-                "SELECT name, role FROM faculty WHERE faculty_id=?", (identity,)
+                "SELECT name, role FROM staff WHERE staff_id=?", (identity,)
             ).fetchone()
 
         if person is None:
             return {"faces": results, "name": None}
 
-        if kind == "student":
+        if kind == "resident":
             display_name = person["name"]
         else:
-            role_label = "Technician" if person["role"] == "technician" else "Faculty"
+            role_label = "Security" if person["role"] == "security" else "Warden"
             display_name = f"{role_label} ({person['name']})"
 
-        if lab_id is None:
-            # No single lab to log attendance against — report who was recognized
-            # but don't touch the attendance tables.
-            return {
-                "faces": results, "name": display_name, "identity": identity,
-                "kind": kind, "marked": False,
-            }
-
-        today = date.today().isoformat()
-        period_id = _current_period_id(conn)
-
-        table, id_col = ("attendance", "roll_no") if kind == "student" else ("faculty_attendance", "faculty_id")
-        status, changed = _toggle_attendance(conn, table, id_col, identity, lab_id, today, period_id)
+        table, id_col = ("attendance", "resident_id") if kind == "resident" else ("staff_attendance", "staff_id")
+        status, marked, cooldown, remaining = _toggle_attendance(conn, table, id_col, identity, kind)
 
         return {
             "faces": results,
@@ -165,7 +144,9 @@ async def scan(request: Request, image: UploadFile = File(...)):
             "identity": identity,
             "kind": kind,
             "status": status,
-            "marked": changed,
+            "marked": marked,
+            "cooldown": cooldown,
+            "remaining": remaining,
         }
     finally:
         conn.close()
@@ -175,90 +156,88 @@ async def scan(request: Request, image: UploadFile = File(...)):
 def scanner_logs(request: Request):
     user, redirect = require_login(request)
     if redirect:
-        return {"rows": []}
-    lab_id = user["lab_id"]
-    if lab_id is None:
-        return {"rows": []}
+        return {"rows": [], "count": 0}
 
     today = date.today().isoformat()
     conn = get_connection()
     try:
         rows = conn.execute(
-            "SELECT s.name AS name, s.department AS department, s.section AS section, s.batch AS batch, "
-            "a.in_time, pin.period_name AS period_in, a.session_date AS in_date, "
-            "a.out_time, pout.period_name AS period_out, a.out_date "
+            "SELECT 'resident' AS kind, r.resident_id AS person_id, r.name AS name, "
+            "r.room_no AS room_no, a.direction, a.punch_time, a.punch_date "
             "FROM attendance a "
-            "JOIN students s ON s.roll_no = a.roll_no "
-            "LEFT JOIN periods pin ON pin.id = a.in_period_id "
-            "LEFT JOIN periods pout ON pout.id = a.out_period_id "
-            "WHERE a.lab_id=? AND a.session_date=? "
+            "JOIN residents r ON r.resident_id = a.resident_id "
+            "WHERE a.punch_date=? "
             "UNION ALL "
-            "SELECT (CASE WHEN f.role='technician' THEN 'Technician (' ELSE 'Faculty (' END) || f.name || ')' "
-            "AS name, f.department AS department, "
-            "NULL AS section, f.designation AS batch, "
-            "fa.in_time, pin.period_name AS period_in, fa.session_date AS in_date, "
-            "fa.out_time, pout.period_name AS period_out, fa.out_date "
-            "FROM faculty_attendance fa "
-            "JOIN faculty f ON f.faculty_id = fa.faculty_id "
-            "LEFT JOIN periods pin ON pin.id = fa.in_period_id "
-            "LEFT JOIN periods pout ON pout.id = fa.out_period_id "
-            "WHERE fa.lab_id=? AND fa.session_date=? "
-            "ORDER BY in_time DESC",
-            (lab_id, today, lab_id, today),
+            "SELECT 'staff' AS kind, s.staff_id AS person_id, "
+            "(CASE WHEN s.role='security' THEN 'Security (' ELSE 'Warden (' END) || s.name || ')' AS name, "
+            "s.designation AS room_no, "
+            "sa.direction, sa.punch_time, sa.punch_date "
+            "FROM staff_attendance sa "
+            "JOIN staff s ON s.staff_id = sa.staff_id "
+            "WHERE sa.punch_date=? "
+            "ORDER BY punch_time DESC",
+            (today, today),
         ).fetchall()
 
-        # Distinct headcount for today: unique students + unique faculty who
-        # scanned in at least once, regardless of how many IN/OUT toggles
-        # they triggered (re-entering the lab later doesn't inflate the count).
-        count_row = conn.execute(
-            "SELECT "
-            "(SELECT COUNT(DISTINCT roll_no) FROM attendance WHERE lab_id=? AND session_date=?) + "
-            "(SELECT COUNT(DISTINCT faculty_id) FROM faculty_attendance WHERE lab_id=? AND session_date=?) "
-            "AS total",
-            (lab_id, today, lab_id, today),
-        ).fetchone()
+        total_count = len(rows)
     finally:
         conn.close()
 
     formatted = []
     for r in rows:
         row = dict(r)
-        row["in_time"] = format_datetime_time_12h(row["in_time"])
-        row["out_time"] = format_datetime_time_12h(row["out_time"])
+        row["punch_time_12"] = format_datetime_time_12h(row["punch_time"])
         formatted.append(row)
 
-    return {"rows": formatted, "count": count_row["total"] if count_row else 0}
+    return {"rows": formatted, "count": total_count}
 
 
 @router.post("/api/scanner/clear")
 def scanner_clear(request: Request, password: str = Form(...)):
-    user, redirect = require_login(request)
+    user, redirect = require_admin(request)
     if redirect:
         return {"ok": False, "error": "not logged in"}
-    lab_id = user["lab_id"]
-    if lab_id is None:
-        return {"ok": False, "error": "no lab context"}
 
     conn = get_connection()
     try:
-        lab = conn.execute("SELECT clear_lab_password FROM labs WHERE id=?", (lab_id,)).fetchone()
-        if lab is None or password != lab["clear_lab_password"]:
+        settings = conn.execute("SELECT gate_password FROM settings WHERE id=1").fetchone()
+        if settings is None or password != settings["gate_password"]:
             return {"ok": False, "error": "Incorrect password"}
 
         today = date.today().isoformat()
-        now_iso = datetime.now().isoformat(sep=" ", timespec="seconds")
-        period_id = _current_period_id(conn)
-        cur_students = conn.execute(
-            "UPDATE attendance SET out_time=?, out_date=?, out_period_id=? "
-            "WHERE lab_id=? AND session_date=? AND out_time IS NULL",
-            (now_iso, today, period_id, lab_id, today),
-        )
-        cur_faculty = conn.execute(
-            "UPDATE faculty_attendance SET out_time=?, out_date=?, out_period_id=? "
-            "WHERE lab_id=? AND session_date=? AND out_time IS NULL",
-            (now_iso, today, period_id, lab_id, today),
-        )
+        now_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Mark OUT any resident whose last movement today was IN
+        active_residents = conn.execute(
+            "SELECT resident_id, direction FROM attendance a1 "
+            "WHERE punch_date=? AND id = (SELECT MAX(id) FROM attendance a2 WHERE a2.resident_id = a1.resident_id AND a2.punch_date=?)",
+            (today, today),
+        ).fetchall()
+
+        cleared = 0
+        for ar in active_residents:
+            if ar["direction"].upper() == "IN":
+                conn.execute(
+                    "INSERT INTO attendance (resident_id, direction, punch_time, punch_date) VALUES (?,?,?,?)",
+                    (ar["resident_id"], "OUT", now_iso, today),
+                )
+                cleared += 1
+
+        active_staff = conn.execute(
+            "SELECT staff_id, direction FROM staff_attendance sa1 "
+            "WHERE punch_date=? AND id = (SELECT MAX(id) FROM staff_attendance sa2 WHERE sa2.staff_id = sa1.staff_id AND sa2.punch_date=?)",
+            (today, today),
+        ).fetchall()
+
+        for st in active_staff:
+            if st["direction"].upper() == "IN":
+                conn.execute(
+                    "INSERT INTO staff_attendance (staff_id, direction, punch_time, punch_date) VALUES (?,?,?,?)",
+                    (st["staff_id"], "OUT", now_iso, today),
+                )
+                cleared += 1
+
         conn.commit()
-        return {"ok": True, "cleared": cur_students.rowcount + cur_faculty.rowcount}
+        return {"ok": True, "cleared": cleared}
     finally:
         conn.close()

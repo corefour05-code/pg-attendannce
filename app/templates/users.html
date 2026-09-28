@@ -3,7 +3,7 @@
 {% block content %}
 <div class="card" style="margin-bottom:1.5rem;">
   <h2 style="display:flex; align-items:center; gap:0.5rem;"><i class="ph ph-users-three"></i>Manage Users</h2>
-  <form method="post" action="/users/add" style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap:0.75rem; align-items:end;">
+  <form method="post" action="/users/add" style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:0.75rem; align-items:end;">
     <label style="margin:0;">Username
       <input type="text" name="username" class="form-control" required />
     </label>
@@ -16,30 +16,21 @@
         <option value="admin">Admin = Full Access</option>
       </select>
     </label>
-    <label style="margin:0;">Assigned Lab
-      <select name="lab_id" class="form-control">
-        <option value="">None (Super Admin)</option>
-        {% for lab in labs %}
-        <option value="{{ lab.id }}">{{ lab.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
     <button type="submit" class="btn btn-primary">Add User</button>
   </form>
 </div>
 
 <div class="card">
   <table>
-    <thead><tr><th>Username</th><th>Role</th><th>Assigned Lab</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Username</th><th>Role</th><th>Actions</th></tr></thead>
     <tbody>
       {% for u in users %}
       <tr>
         <td>{{ u.username }}</td>
         <td><span class="badge {{ 'badge-blue' if u.role == 'admin' else 'badge-teal' }}">{{ u.role | capitalize }}</span></td>
-        <td>{{ u.lab_name or 'All Labs' }}</td>
         <td style="display:flex; gap:0.5rem;">
           <button type="button" class="btn btn-outline" style="padding:0.35rem 0.6rem;"
-            onclick='openEditModal({{ u.id }}, {{ u.username|tojson }}, {{ u.role|tojson }}, {{ (u.lab_id or "")|tojson }})'>
+            onclick='openEditModal({{ u.id }}, {{ u.username|tojson }}, {{ u.role|tojson }})'>
             <i class="ph ph-note-pencil"></i>
           </button>
           <form method="post" action="/users/{{ u.id }}/delete" onsubmit="return confirm('Delete user {{ u.username }}?');">
@@ -48,7 +39,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:2rem;">No users yet.</td></tr>
+      <tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:2rem;">No users yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -68,14 +59,6 @@
         <select name="role" id="edit-role" class="form-control">
           <option value="user">User = Scanner Only</option>
           <option value="admin">Admin = Full Access</option>
-        </select>
-      </label>
-      <label style="margin:0;">Assigned Lab
-        <select name="lab_id" id="edit-lab-id" class="form-control">
-          <option value="">None (Super Admin)</option>
-          {% for lab in labs %}
-          <option value="{{ lab.id }}">{{ lab.name }}</option>
-          {% endfor %}
         </select>
       </label>
       <div class="modal-actions">
@@ -108,12 +91,11 @@
 </style>
 
 <script>
-function openEditModal(id, username, role, labId) {
+function openEditModal(id, username, role) {
   document.getElementById('edit-user-form').action = `/users/${id}/edit`;
   document.getElementById('edit-username').value = username;
   document.getElementById('edit-password').value = '';
   document.getElementById('edit-role').value = role;
-  document.getElementById('edit-lab-id').value = labId;
   document.getElementById('edit-user-modal').classList.add('open');
 }
 function closeEditModal() {

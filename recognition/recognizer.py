@@ -29,25 +29,25 @@ class FaceRecognizer:
         self.app = get_face_app()
         self.match_threshold = match_threshold
         self.match_margin = match_margin
-        self.identities: list[tuple[str, str, str | None]] = []  # (kind, id, role); role only set for faculty
+        self.identities: list[tuple[str, str, str | None]] = []  # (kind, id, role); role only set for staff
         self.identity_key_arr = np.array([], dtype=object)
         self.matrix = np.zeros((0, EMBEDDING_DIM), dtype=np.float32)
         self.reload_embeddings()
 
     def reload_embeddings(self) -> int:
-        """(Re)load all student + faculty embeddings from the DB into the in-memory
+        """(Re)load all resident + staff embeddings from the DB into the in-memory
         matrix. Returns the number of embeddings loaded."""
         conn = get_connection()
         try:
-            student_rows = conn.execute("SELECT roll_no AS id, embedding FROM embeddings").fetchall()
-            faculty_rows = conn.execute(
-                "SELECT fe.faculty_id AS id, fe.embedding AS embedding, f.role AS role "
-                "FROM faculty_embeddings fe JOIN faculty f ON f.faculty_id = fe.faculty_id"
+            resident_rows = conn.execute("SELECT resident_id AS id, embedding FROM embeddings").fetchall()
+            staff_rows = conn.execute(
+                "SELECT se.staff_id AS id, se.embedding AS embedding, s.role AS role "
+                "FROM staff_embeddings se JOIN staff s ON s.staff_id = se.staff_id"
             ).fetchall()
         finally:
             conn.close()
 
-        rows = [("student", r, None) for r in student_rows] + [("faculty", r, r["role"]) for r in faculty_rows]
+        rows = [("resident", r, None) for r in resident_rows] + [("staff", r, r["role"]) for r in staff_rows]
 
         if not rows:
             self.identities = []
@@ -75,7 +75,7 @@ class FaceRecognizer:
         clear a flat threshold).
 
         Returns (kind, id, role, best_score) where kind/id/role are None on no-match.
-        role is only set when kind is 'faculty'.
+        role is only set when kind is 'staff'.
         """
         if self.matrix.shape[0] == 0:
             return None, None, None, 0.0
@@ -100,7 +100,7 @@ class FaceRecognizer:
         """Detect all faces in frame, match each against the embedding matrix.
 
         Returns (results, timing_ms) where each result is:
-            {'bbox': (x1,y1,x2,y2), 'kind': 'student'|'faculty'|None, 'role': 'faculty'|'technician'|None,
+            {'bbox': (x1,y1,x2,y2), 'kind': 'resident'|'staff'|None, 'role': 'warden'|'security'|None,
              'identity': str, 'confidence': float}
         and timing_ms has 'detect_embed_ms', 'match_ms', 'total_ms'.
         """

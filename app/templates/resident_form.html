@@ -1,0 +1,168 @@
+{% extends "base_admin.html" %}
+{% block title %}{{ 'Add Resident' if mode == 'add' else ('Update Resident' if mode == 'update' else 'Edit Resident') }}{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem;">
+  <div>
+    <h1 style="margin-bottom:0.25rem;">{{ 'Add Resident' if mode == 'add' else ('Update Resident' if mode == 'update' else 'Edit Resident') }}</h1>
+    <p style="color: var(--text-muted); margin:0;">
+      {% if mode == 'add' %}
+        Enter member details and capture face photos. ID is auto-assigned.
+      {% elif mode == 'update' %}
+        Enter resident ID to update details.
+      {% else %}
+        Update details for {{ resident.name }}.
+      {% endif %}
+    </p>
+  </div>
+  {% if mode == 'add' %}
+  <div style="background:#EFF6FF; border:1px solid #BFDBFE; border-radius:8px; padding:0.6rem 1.25rem; text-align:right;">
+    <div style="font-size:0.75rem; color:#1E40AF; text-transform:uppercase; font-weight:700;">Auto-Assigned ID</div>
+    <div style="font-size:1.25rem; color:#1D4ED8; font-weight:700;">{{ suggested_id }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<form id="resident-form" class="card" method="post"
+      action="{% if mode == 'add' %}/residents/add{% elif mode == 'edit' %}/residents/{{ resident.resident_id }}/edit{% else %}#{% endif %}">
+  
+  <input type="hidden" name="resident_id" id="resident_id-input"
+         value="{{ resident.resident_id if resident else (suggested_id or '') }}" />
+
+  <div class="grid-2">
+    <label>Full Name *
+      <input type="text" name="name" id="name-input" class="form-control" required 
+             value="{{ resident.name if resident else '' }}" placeholder="Enter member name" autofocus />
+    </label>
+    <label>Room Number *
+      <input type="text" name="room_no" id="room-input" class="form-control" required 
+             value="{{ resident.room_no if resident else '' }}" placeholder="e.g. 101, 204..." />
+    </label>
+  </div>
+
+  {% if mode == 'add' %}
+  <div style="grid-column: 1 / -1; margin-top: 1.5rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+      <h3 style="margin:0;">Face Photos</h3>
+      <span class="counter-badge" id="add-counter">0/5</span>
+    </div>
+    <div class="step-pills" id="add-steps"></div>
+    <div class="grid-2">
+      <div>
+        <div class="face-capture-box">
+          <video id="add-video" autoplay playsinline muted></video>
+          <div class="face-capture-oval"></div>
+          <div class="face-capture-caption">Align face inside the oval</div>
+        </div>
+      </div>
+      <div>
+        <div class="hint-box">Look in the indicated direction for each step, then click Capture.</div>
+        <button type="button" class="btn btn-primary" id="add-capture-btn" style="width:100%; padding:0.85rem;">Capture Photo (<span id="add-capture-label">0/5</span>)</button>
+        <div class="status" id="add-status"></div>
+        <div class="thumb-grid" id="add-thumbs"></div>
+      </div>
+    </div>
+    <div id="add-hidden-inputs"></div>
+  </div>
+  {% else %}
+  <div id="recapture-wrap" style="grid-column: 1 / -1; margin-top: 1.5rem; border: 1px dashed #ced4da; border-radius: 8px; padding: 1rem;{{ ' display:none;' if mode == 'update' else '' }}">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="margin:0;">Face Encodings</h3>
+      <button type="button" class="btn btn-primary" id="recapture-toggle-btn">Update / Recapture Faces</button>
+    </div>
+    <div id="recapture-collapsed">
+      <p style="color: var(--text-muted); margin-top:0.75rem;">Existing face encodings (<span id="embedding-count-text">{{ embedding_count }}</span>) are stored in the system.</p>
+    </div>
+    <div id="recapture-expanded" style="display:none; margin-top:1rem;">
+      <h4>Face Photos <span class="counter-badge" id="edit-counter">0/2</span></h4>
+      <div class="step-pills" id="edit-steps"></div>
+      <div class="grid-2">
+        <div>
+          <div class="face-capture-box">
+            <video id="edit-video" autoplay playsinline muted></video>
+            <div class="face-capture-oval"></div>
+            <div class="face-capture-caption">Align face inside the oval</div>
+          </div>
+        </div>
+        <div>
+          <div class="hint-box">Recapture 2 fresh photos to add to this resident's recognition data.</div>
+          <button type="button" class="btn btn-primary" id="edit-capture-btn">Capture Photo (<span id="edit-capture-label">0/2</span>)</button>
+          <div class="status" id="edit-status"></div>
+          <div class="thumb-grid" id="edit-thumbs"></div>
+        </div>
+      </div>
+      <div id="edit-hidden-inputs"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div style="border-top: 1px solid #eee; margin-top: 1.5rem; padding-top: 1.5rem; display:flex; justify-content:{{ 'flex-end' if mode == 'add' else 'space-between' }};">
+    {% if mode == 'edit' or mode == 'update' %}<a class="btn btn-grey" href="/residents">Back</a>{% endif %}
+    <button type="submit" class="btn btn-primary" id="submit-btn" {{ 'disabled' if mode == 'add' else '' }}>
+      {{ 'Save Resident Member' if mode == 'add' else 'Update Record' }}
+    </button>
+  </div>
+</form>
+
+<script src="/static/face-capture.js"></script>
+<script>
+{% if mode == 'add' %}
+let photosDone = false;
+
+function updateSubmitState() {
+  document.getElementById('submit-btn').disabled = !photosDone;
+}
+
+const addWidget = new FaceCaptureWidget({
+  video: document.getElementById('add-video'),
+  captureBtn: document.getElementById('add-capture-btn'),
+  counterEl: document.getElementById('add-counter'),
+  stepListEl: document.getElementById('add-steps'),
+  thumbGridEl: document.getElementById('add-thumbs'),
+  hiddenContainer: document.getElementById('add-hidden-inputs'),
+  inputPrefix: 'photo_',
+  totalShots: 5,
+  stepLabels: [
+    '1. Look Straight',
+    '2. Turn Slight Left',
+    '3. Turn Slight Right',
+    '4. Tilt Up',
+    '5. Tilt Down',
+  ],
+  statusEl: document.getElementById('add-status'),
+  onComplete: () => { photosDone = true; updateSubmitState(); },
+});
+addWidget.start();
+document.getElementById('add-capture-btn').addEventListener('click', () => {
+  setTimeout(() => {
+    document.getElementById('add-capture-label').textContent = addWidget.counterEl.textContent;
+  }, 50);
+});
+
+{% elif mode == 'edit' %}
+let editWidget = null;
+document.getElementById('recapture-toggle-btn').addEventListener('click', () => {
+  const expanded = document.getElementById('recapture-expanded');
+  if (expanded.style.display === 'none') {
+    expanded.style.display = 'block';
+    if (!editWidget) {
+      editWidget = new FaceCaptureWidget({
+        video: document.getElementById('edit-video'),
+        captureBtn: document.getElementById('edit-capture-btn'),
+        counterEl: document.getElementById('edit-counter'),
+        stepListEl: document.getElementById('edit-steps'),
+        thumbGridEl: document.getElementById('edit-thumbs'),
+        hiddenContainer: document.getElementById('edit-hidden-inputs'),
+        inputPrefix: 'photo_',
+        totalShots: 2,
+        stepLabels: ['1. Look Straight', '2. Turn Slight Angle'],
+        statusEl: document.getElementById('edit-status'),
+      });
+      editWidget.start();
+    }
+  } else {
+    expanded.style.display = 'none';
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

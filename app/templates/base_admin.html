@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>{% block title %}PSNA Dashboard{% endblock %}</title>
+<title>{% block title %}Hostel Dashboard{% endblock %}</title>
 <link rel="stylesheet" href="/static/design-system.css" />
 <script src="https://unpkg.com/@phosphor-icons/web"></script>
 <style>
@@ -72,55 +72,48 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <i class="ph ph-shield-check"></i>
-        <span>PSNA Dashboard</span>
+        <span>Hostel Dashboard</span>
       </div>
 
       <nav>
         <div class="nav-group">
-          <div class="nav-group-label">User Dashboard</div>
+          <div class="nav-group-label">Gate Dashboard</div>
           <a class="nav-link {{ 'active' if active_nav == 'scanner' else '' }}" href="/scanner">
             <i class="ph ph-camera"></i>
-            <span>{{ lab_name or 'All Labs' }} Scanner</span>
+            <span>Gate Scanner</span>
           </a>
         </div>
 
-        {% if is_main_admin %}
+        {% if is_admin %}
         <div class="nav-group">
           <div class="nav-group-label">Analytics</div>
           <a class="nav-link {{ 'active' if active_nav == 'analytics' else '' }}" href="/analytics"><i class="ph ph-chart-pie"></i><span>Analytics</span></a>
         </div>
 
         <div class="nav-group">
-          <div class="nav-group-label">Student Controls</div>
-          <a class="nav-link {{ 'active' if active_nav == 'students' else '' }}" href="/students"><i class="ph ph-users"></i><span>Students Info</span></a>
-          <a class="nav-link {{ 'active' if active_nav == 'student_update' else '' }}" href="/students/update"><i class="ph ph-note-pencil"></i><span>Update Student</span></a>
-          <a class="nav-link {{ 'active' if active_nav == 'student_delete' else '' }}" href="/students/delete"><i class="ph ph-trash"></i><span>Delete Student</span></a>
-          <a class="nav-link {{ 'active' if active_nav == 'report' else '' }}" href="/report"><i class="ph ph-flask"></i><span>Lab Report</span></a>
-          <a class="nav-link {{ 'active' if active_nav == 'student_add' else '' }}" href="/students/add"><i class="ph ph-user-plus"></i><span>Add New Student</span></a>
-          <a class="nav-link {{ 'active' if active_nav == 'batch_processing' else '' }}" href="/batch-processing"><i class="ph ph-arrows-clockwise"></i><span>Batch Processing</span></a>
-          <a class="nav-link {{ 'active' if active_nav == 'old_students' else '' }}" href="/old-students"><i class="ph ph-archive"></i><span>Old Students</span></a>
+          <div class="nav-group-label">Resident Controls</div>
+          <a class="nav-link {{ 'active' if active_nav == 'residents' else '' }}" href="/residents"><i class="ph ph-users"></i><span>Residents Info</span></a>
+          <a class="nav-link {{ 'active' if active_nav == 'resident_add' else '' }}" href="/residents/add"><i class="ph ph-user-plus"></i><span>Add New Resident</span></a>
+          <a class="nav-link {{ 'active' if active_nav == 'report' else '' }}" href="/report"><i class="ph ph-clipboard-text"></i><span>Attendance Report</span></a>
+          <a class="nav-link {{ 'active' if active_nav == 'vacated_residents' else '' }}" href="/vacated-residents"><i class="ph ph-archive"></i><span>Vacated Residents</span></a>
         </div>
 
         <div class="nav-group">
-          <div class="nav-group-label">Faculty Controls</div>
-          <a class="nav-link {{ 'active' if active_nav == 'faculty' else '' }}" href="/faculty"><i class="ph ph-users"></i><span>Faculty Info</span></a>
-          <a class="nav-link {{ 'active' if active_nav == 'faculty_update' else '' }}" href="/faculty/update"><i class="ph ph-note-pencil"></i><span>Update Faculty</span></a>
-          <a class="nav-link {{ 'active' if active_nav == 'faculty_delete' else '' }}" href="/faculty/delete"><i class="ph ph-trash"></i><span>Delete Faculty</span></a>
-          <a class="nav-link {{ 'active' if active_nav == 'faculty_add' else '' }}" href="/faculty/add"><i class="ph ph-user-plus"></i><span>Add New Faculty</span></a>
+          <div class="nav-group-label">Staff Controls</div>
+          <a class="nav-link {{ 'active' if active_nav == 'staff' else '' }}" href="/staff"><i class="ph ph-users"></i><span>Staff Info</span></a>
+          <a class="nav-link {{ 'active' if active_nav == 'staff_add' else '' }}" href="/staff/add"><i class="ph ph-user-plus"></i><span>Add New Staff</span></a>
         </div>
 
         <div class="nav-group">
           <div class="nav-group-label">System Config</div>
-          <a class="nav-link {{ 'active' if active_nav == 'labs' else '' }}" href="/labs"><i class="ph ph-flask"></i><span>Manage Labs</span></a>
-          <a class="nav-link {{ 'active' if active_nav == 'lab_security' else '' }}" href="/lab-security"><i class="ph ph-lock"></i><span>Lab Security Config</span></a>
-          <a class="nav-link {{ 'active' if active_nav == 'periods' else '' }}" href="/periods"><i class="ph ph-clock"></i><span>Manage Periods</span></a>
-          <a class="nav-link {{ 'active' if active_nav == 'shutdown_times' else '' }}" href="/shutdown-times"><i class="ph ph-power"></i><span>Manage Shutdown Time</span></a>
+          <a class="nav-link {{ 'active' if active_nav == 'settings' else '' }}" href="/settings"><i class="ph ph-lock"></i><span>Settings</span></a>
+          <a class="nav-link {{ 'active' if active_nav == 'curfew_times' else '' }}" href="/curfew-times"><i class="ph ph-power"></i><span>Manage Curfew Time</span></a>
           <a class="nav-link {{ 'active' if active_nav == 'users' else '' }}" href="/users"><i class="ph ph-users-three"></i><span>Manage Users</span></a>
         </div>
         {% else %}
         <div class="nav-group">
           <div class="nav-group-label">Reports</div>
-          <a class="nav-link {{ 'active' if active_nav == 'report' else '' }}" href="/report"><i class="ph ph-flask"></i><span>Lab Report</span></a>
+          <a class="nav-link {{ 'active' if active_nav == 'report' else '' }}" href="/report"><i class="ph ph-clipboard-text"></i><span>Attendance Report</span></a>
         </div>
         {% endif %}
       </nav>
@@ -130,7 +123,7 @@
       <header class="topbar">
         <div class="topbar-brand">
           <i class="ph ph-globe"></i>
-          <span>PSNA Lab Attendance System</span>
+          <span>PG Hostel Attendance System</span>
         </div>
         <div class="topbar-right">
           <span>Logged in as: {{ (current_user.role if current_user else '') | capitalize }}</span>

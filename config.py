@@ -1,4 +1,4 @@
-"""Central configuration for the attendance system. Tune these without touching logic."""
+"""Central configuration for the hostel attendance system. Tune these without touching logic."""
 
 import secrets
 from pathlib import Path
@@ -43,17 +43,14 @@ MATCH_MARGIN = 0.05                    # best match must beat the best *other* i
 MIN_FACE_SIZE_PX = 60                  # reject tiny/far-away detections
 
 # --- Analytics ---
-# Minimum distinct students from the same (year, section) checked into the
-# same period+lab to count that group as a scheduled lab class rather than
-# individual/project attendance. Overridable per-request on the Analytics page.
-LAB_CLASS_MIN_STUDENTS = 35
-
-# A student's same-day, same-lab attendance rows are merged into one session
-# when the gap between an OUT and the next IN is within this many minutes —
-# treated as a short break (stepping out and back in), not a separate visit.
-# A longer gap (e.g. class ended, then a lone comeback periods later) starts
-# a new, independently-classified session instead.
+# A resident's same-day attendance rows are merged into one session when the
+# gap between an OUT and the next IN is within this many minutes — treated as
+# a short break (stepping out and back in), not a separate visit.
 ANALYTICS_SESSION_GAP_MINUTES = 15
+
+# Hour (24h) after which an IN scan counts as a "late entry" on the Analytics
+# page — the hostel-relevant curfew-violation signal. Overridable per-request.
+LATE_ENTRY_CUTOFF_HOUR = 22
 
 # --- Enrollment ---
 ENROLLMENT_SHOTS_PER_STUDENT = 5
@@ -67,11 +64,11 @@ BLUR_LAPLACIAN_VAR_THRESHOLD = 80.0    # below this variance, image is considere
 DEDUP_WINDOW_MINUTES = 1
 
 # --- Web app auth ---
-ATTENDANCE_PASSCODE = "attendance123"  # gate before the scanner login (Page 5)
-DEFAULT_CLEAR_LAB_PASSWORD = "clear123"
+ATTENDANCE_PASSCODE = "attendance123"  # gate before the scanner login (kiosk)
+DEFAULT_GATE_PASSWORD = "clear123"     # default "Clear Gate" password, stored in settings.gate_password
 EDIT_RECAPTURE_SHOTS = 2               # photos required when re-capturing faces on Edit pages
 
 # --- Seed (db/seed.py) ---
-SEED_MAIN_LAB_NAME = "Main Lab"
+HOSTEL_NAME = "PG Hostel"
 SEED_ADMIN_USERNAME = "admin"
 SEED_ADMIN_PASSWORD = "admin123"       # change via Manage Users after first login

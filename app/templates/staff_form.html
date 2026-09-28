@@ -1,36 +1,36 @@
 {% extends "base_admin.html" %}
-{% block title %}{{ 'Add New Faculty' if mode == 'add' else 'Edit Faculty' }}{% endblock %}
+{% block title %}{{ 'Add New Staff' if mode == 'add' else 'Edit Staff' }}{% endblock %}
 {% block content %}
-<h1>{{ 'Add New Faculty' if mode == 'add' else 'Edit Faculty' }}</h1>
+<h1>{{ 'Add New Staff' if mode == 'add' else 'Edit Staff' }}</h1>
 <p style="color: var(--text-muted);">
   {% if mode == 'add' %}
     Enter the details below and capture 5 face photos for accurate recognition.
   {% else %}
-    Update details for {{ faculty.name }}.
+    Update details for {{ staff.name }}.
   {% endif %}
 </p>
 
-<form id="faculty-form" class="card" method="post"
-      action="{{ '/faculty/add' if mode == 'add' else '/faculty/' + faculty.faculty_id + '/edit' }}">
+<form id="staff-form" class="card" method="post"
+      action="{{ '/staff/add' if mode == 'add' else '/staff/' + staff.staff_id + '/edit' }}">
   <div class="grid-2">
-    <label>Faculty ID *
-      <input type="text" name="faculty_id" id="faculty_id-input" class="form-control" required
-             value="{{ faculty.faculty_id if faculty else '' }}" />
-      <div id="faculty-id-warning" class="status err" style="display:none;"></div>
+    <label>Staff ID *
+      <input type="text" name="staff_id" id="staff_id-input" class="form-control" required
+             value="{{ staff.staff_id if staff else '' }}" />
+      <div id="staff-id-warning" class="status err" style="display:none;"></div>
     </label>
     <label>Name *
-      <input type="text" name="name" class="form-control" required value="{{ faculty.name if faculty else '' }}" />
+      <input type="text" name="name" class="form-control" required value="{{ staff.name if staff else '' }}" />
     </label>
-    <label>Department
-      <input type="text" name="department" class="form-control" value="{{ faculty.department if faculty else '' }}" />
+    <label>Phone
+      <input type="text" name="phone" class="form-control" value="{{ staff.phone if staff else '' }}" />
     </label>
     <label>Designation
-      <input type="text" name="designation" class="form-control" value="{{ faculty.designation if faculty else '' }}" />
+      <input type="text" name="designation" class="form-control" value="{{ staff.designation if staff else '' }}" />
     </label>
     <label>Role *
       <select name="role" class="form-control" required>
-        <option value="faculty" {{ 'selected' if not faculty or faculty.role == 'faculty' else '' }}>Faculty</option>
-        <option value="technician" {{ 'selected' if faculty and faculty.role == 'technician' else '' }}>Technician</option>
+        <option value="warden" {{ 'selected' if not staff or staff.role == 'warden' else '' }}>Warden</option>
+        <option value="security" {{ 'selected' if staff and staff.role == 'security' else '' }}>Security</option>
       </select>
     </label>
   </div>
@@ -77,7 +77,7 @@
           </div>
         </div>
         <div>
-          <div class="hint-box">Recapture 2 fresh photos to add to this faculty member's recognition data.</div>
+          <div class="hint-box">Recapture 2 fresh photos to add to this staff member's recognition data.</div>
           <button type="button" class="btn btn-primary" id="edit-capture-btn">Capture Photo</button>
           <div class="status" id="edit-status"></div>
           <div class="thumb-grid" id="edit-thumbs"></div>
@@ -89,9 +89,9 @@
   {% endif %}
 
   <div style="border-top: 1px solid #eee; margin-top: 1.5rem; padding-top: 1.5rem; display:flex; justify-content:{{ 'flex-end' if mode == 'add' else 'space-between' }};">
-    {% if mode == 'edit' %}<a class="btn btn-grey" href="/faculty">Back</a>{% endif %}
+    {% if mode == 'edit' %}<a class="btn btn-grey" href="/staff">Back</a>{% endif %}
     <button type="submit" class="btn btn-primary" id="submit-btn" {{ 'disabled' if mode == 'add' else '' }}>
-      {{ 'Save Faculty Record' if mode == 'add' else 'Update Record' }}
+      {{ 'Save Staff Record' if mode == 'add' else 'Update Record' }}
     </button>
   </div>
 </form>
@@ -100,10 +100,10 @@
 <script>
 {% if mode == 'add' %}
 let photosDone = false;
-let facultyIdDuplicate = false;
+let staffIdDuplicate = false;
 
 function updateSubmitState() {
-  document.getElementById('submit-btn').disabled = !photosDone || facultyIdDuplicate;
+  document.getElementById('submit-btn').disabled = !photosDone || staffIdDuplicate;
 }
 
 const addWidget = new FaceCaptureWidget({
@@ -121,56 +121,56 @@ const addWidget = new FaceCaptureWidget({
 });
 addWidget.start();
 
-const facultyIdInput = document.getElementById('faculty_id-input');
-const facultyIdWarning = document.getElementById('faculty-id-warning');
+const staffIdInput = document.getElementById('staff_id-input');
+const staffIdWarning = document.getElementById('staff-id-warning');
 
-async function checkFacultyId() {
-  const value = facultyIdInput.value.trim();
-  facultyIdDuplicate = false;
-  facultyIdWarning.style.display = 'none';
+async function checkStaffId() {
+  const value = staffIdInput.value.trim();
+  staffIdDuplicate = false;
+  staffIdWarning.style.display = 'none';
   if (!value) { updateSubmitState(); return; }
 
   try {
-    const res = await fetch(`/faculty/check-id?faculty_id=${encodeURIComponent(value)}`);
+    const res = await fetch(`/staff/check-id?staff_id=${encodeURIComponent(value)}`);
     const data = await res.json();
     if (data.exists) {
-      facultyIdDuplicate = true;
-      facultyIdWarning.textContent = `Already exists: ${data.name}. Choose a different Faculty ID or edit the existing record.`;
-      facultyIdWarning.style.display = 'block';
+      staffIdDuplicate = true;
+      staffIdWarning.textContent = `Already exists: ${data.name}. Choose a different Staff ID or edit the existing record.`;
+      staffIdWarning.style.display = 'block';
     }
   } catch (e) {
-    facultyIdDuplicate = false;
+    staffIdDuplicate = false;
   }
   updateSubmitState();
 }
 
-facultyIdInput.addEventListener('blur', checkFacultyId);
-facultyIdInput.addEventListener('input', () => {
-  facultyIdDuplicate = false;
-  facultyIdWarning.style.display = 'none';
+staffIdInput.addEventListener('blur', checkStaffId);
+staffIdInput.addEventListener('input', () => {
+  staffIdDuplicate = false;
+  staffIdWarning.style.display = 'none';
   updateSubmitState();
 });
 
 {% else %}
-const originalFacultyId = {{ faculty.faculty_id | tojson }};
-const facultyIdInput = document.getElementById('faculty_id-input');
-const facultyIdWarning = document.getElementById('faculty-id-warning');
+const originalStaffId = {{ staff.staff_id | tojson }};
+const staffIdInput = document.getElementById('staff_id-input');
+const staffIdWarning = document.getElementById('staff-id-warning');
 
-async function checkFacultyIdRename() {
-  const value = facultyIdInput.value.trim();
-  facultyIdWarning.style.display = 'none';
-  if (!value || value === originalFacultyId) { return; }
+async function checkStaffIdRename() {
+  const value = staffIdInput.value.trim();
+  staffIdWarning.style.display = 'none';
+  if (!value || value === originalStaffId) { return; }
 
   try {
-    const res = await fetch(`/faculty/check-id?faculty_id=${encodeURIComponent(value)}`);
+    const res = await fetch(`/staff/check-id?staff_id=${encodeURIComponent(value)}`);
     const data = await res.json();
     if (data.exists) {
-      facultyIdWarning.textContent = `ID already used by ${data.name} — choose a different ID.`;
-      facultyIdWarning.style.display = 'block';
+      staffIdWarning.textContent = `ID already used by ${data.name} — choose a different ID.`;
+      staffIdWarning.style.display = 'block';
     }
   } catch (e) { /* non-fatal, server re-checks on submit */ }
 }
-facultyIdInput.addEventListener('blur', checkFacultyIdRename);
+staffIdInput.addEventListener('blur', checkStaffIdRename);
 
 let recaptureWidget = null;
 const toggleBtn = document.getElementById('recapture-toggle-btn');

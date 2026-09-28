@@ -1,6 +1,6 @@
-"""Phase 2: authentication routes — root redirect gate, the three login
-entry points (lab login, admin login, attendance passcode gate), logout, and
-the optional landing chooser page.
+"""Authentication routes — root redirect gate, the three login entry points
+(admin login, staff login, attendance passcode gate), logout, and the
+optional landing chooser page.
 """
 
 import sys
@@ -15,17 +15,14 @@ from config import ATTENDANCE_PASSCODE
 from core.security import verify_password
 from db.connection import get_connection
 
-from app.deps import get_developers_context, get_session_user, is_main_admin
+from app.deps import get_developers_context, get_session_user, is_admin
 from app.templating import templates
 
 router = APIRouter()
 
 
 def _dispatch_redirect(user: dict) -> RedirectResponse:
-    if user["role"] == "admin":
-        target = "/students" if is_main_admin(user) else "/report"
-    else:
-        target = "/scanner"
+    target = "/residents" if user["role"] == "admin" else "/scanner"
     return RedirectResponse(target, status_code=302)
 
 
@@ -67,12 +64,11 @@ def login_post(
     if row is None or not verify_password(password, row["password_hash"]):
         return error("Invalid Credentials")
 
-    user = {"user_id": row["id"], "username": row["username"], "role": row["role"], "lab_id": row["lab_id"]}
+    user = {"user_id": row["id"], "username": row["username"], "role": row["role"]}
 
     request.session["user_id"] = user["user_id"]
     request.session["username"] = user["username"]
     request.session["role"] = user["role"]
-    request.session["lab_id"] = user["lab_id"]
     return _dispatch_redirect(user)
 
 
@@ -94,11 +90,10 @@ def admin_login_post(request: Request, username: str = Form(...), password: str 
             request, "admin_login.html", {"error": "Invalid Credentials"}, status_code=400
         )
 
-    user = {"user_id": row["id"], "username": row["username"], "role": row["role"], "lab_id": row["lab_id"]}
+    user = {"user_id": row["id"], "username": row["username"], "role": row["role"]}
     request.session["user_id"] = user["user_id"]
     request.session["username"] = user["username"]
     request.session["role"] = user["role"]
-    request.session["lab_id"] = user["lab_id"]
     return _dispatch_redirect(user)
 
 
@@ -114,16 +109,9 @@ def attendance_login_post(request: Request, passcode: str = Form(...)):
             request, "attendance_login.html", {"error": "Incorrect passcode"}, status_code=400
         )
 
-    conn = get_connection()
-    try:
-        lab = conn.execute("SELECT id FROM labs ORDER BY id LIMIT 1").fetchone()
-    finally:
-        conn.close()
-
     request.session["user_id"] = 0
     request.session["username"] = "kiosk"
     request.session["role"] = "user"
-    request.session["lab_id"] = lab["id"] if lab else None
     return RedirectResponse("/scanner", status_code=302)
 
 

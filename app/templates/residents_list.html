@@ -1,0 +1,93 @@
+{% extends "base_admin.html" %}
+{% block title %}Residents Info{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem;">
+  <div>
+    <h1 style="margin-bottom:0.25rem;">Residents Info</h1>
+    <p style="color: var(--text-muted); margin:0;">View all registered residents in the system.</p>
+  </div>
+  <a class="btn btn-primary" href="/residents/add"><i class="ph ph-user-plus"></i>Add New Resident</a>
+</div>
+
+{% if intent %}
+<div class="flash-message" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; margin-bottom:1rem;">
+  {% if intent == 'delete' %}Click the <i class="ph ph-trash"></i> icon next to a resident below to delete their record.{% endif %}
+</div>
+{% endif %}
+
+<div class="card" style="background:#F8FAFC; border:1px solid #e2e8f0; margin-bottom:1.5rem;">
+  <form method="get" action="{{ list_path or '/residents' }}" style="display:flex; gap:0.75rem; align-items:flex-end; flex-wrap:wrap;">
+    <label style="flex-grow:1; margin:0;">Search Resident (Name, ID, or Room No)
+      <input type="text" id="search-input" name="q" value="{{ q or '' }}" class="form-control" placeholder="e.g. John or RES-001 or 101" />
+    </label>
+    <button type="submit" class="btn btn-primary">SEARCH</button>
+    <a class="btn btn-outline" href="{{ list_path or '/residents' }}">RESET</a>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:1.5rem; padding:1rem 1.5rem;">
+  <strong id="resident-count" style="font-size:1.4rem; color:var(--primary-blue);">{{ resident_count }}</strong>
+  <span style="color:var(--text-muted); font-size:0.85rem;">resident{{ '' if resident_count == 1 else 's' }}</span>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;">
+  <table id="residents-table">
+    <thead>
+      <tr>
+        <th>Resident ID</th><th>Name</th><th>Room No</th><th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in residents %}
+      <tr>
+        <td><code>{{ r.resident_id }}</code></td>
+        <td style="font-weight:600; color:var(--primary-blue);">{{ r.name }}</td>
+        <td>{{ r.room_no }}</td>
+        <td>
+          <a class="btn btn-outline" style="padding:0.35rem 0.6rem;" title="Edit details" href="/residents/{{ r.resident_id }}/edit"><i class="ph ph-note-pencil"></i></a>
+          <button class="btn btn-grey" style="padding:0.35rem 0.6rem;" title="Vacate" onclick="vacateResident('{{ r.resident_id }}')"><i class="ph ph-door-open"></i></button>
+          <button class="btn btn-danger" style="padding:0.35rem 0.6rem;" title="Delete" onclick="deleteResident('{{ r.resident_id }}')"><i class="ph ph-trash"></i></button>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:2rem;">No residents registered yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+document.getElementById('search-input').addEventListener('keyup', function () {
+  const q = this.value.toLowerCase();
+  let visible = 0;
+  document.querySelectorAll('#residents-table tbody tr').forEach((row) => {
+    if (row.cells.length < 4) return;
+    const text = row.textContent.toLowerCase();
+    const match = text.includes(q);
+    row.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  document.getElementById('resident-count').textContent = visible;
+});
+
+async function vacateResident(residentId) {
+  if (!confirm(`Mark ${residentId} as vacated? This keeps their attendance history but stops the scanner from matching them.`)) return;
+  const res = await fetch(`/residents/${residentId}/vacate`, { method: 'POST' });
+  if (res.ok) {
+    location.reload();
+  } else {
+    alert('Failed to vacate resident.');
+  }
+}
+
+async function deleteResident(residentId) {
+  if (!confirm(`Permanently delete resident ${residentId}? This removes their record, face data, and attendance history. This cannot be undone.`)) return;
+  const res = await fetch(`/residents/${residentId}`, { method: 'DELETE' });
+  if (res.ok) {
+    location.reload();
+  } else {
+    alert('Failed to delete resident.');
+  }
+}
+</script>
+{% endblock %}

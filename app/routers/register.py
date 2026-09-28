@@ -1,8 +1,6 @@
-"""Public self-registration: students enter their own basic details (no face
-capture, no login) ahead of time. Staff later look their ID up on the Add
-Student page, which auto-fills these details and jumps straight to the
-face-capture step — see students.py's /students/check-roll-no lookup.
-"""
+"""Public self-registration: residents enter their Name and Room Number ahead of time.
+An auto-increment Resident ID (RES-001, RES-002...) is automatically assigned.
+Warden/staff later capture their face photos in the admin portal."""
 
 import sys
 from pathlib import Path
@@ -14,72 +12,60 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.templating import templates
 from db.connection import get_connection
-from enrollment.enroll import validate_roll_no
+from enrollment.enroll import get_next_resident_id
 
 router = APIRouter()
 
 
 @router.get("/register")
 def register_form(request: Request):
+    conn = get_connection()
+    try:
+        suggested_id = get_next_resident_id(conn)
+    finally:
+        conn.close()
+
     return templates.TemplateResponse(request, "register.html", {
+        "suggested_id": suggested_id,
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
     })
 
 
-@router.get("/register/check")
-def register_check(request: Request):
-    """Public existence check for the self-registration form's live blur
-    check. Deliberately returns only a boolean — no name/details — since this
-    endpoint has no auth and shouldn't leak other students' info."""
-    roll_no = request.query_params.get("roll_no", "").strip().lower()
-    if not roll_no:
-        return JSONResponse({"exists": False})
-
+@router.get("/register/next-id")
+def register_next_id(request: Request):
     conn = get_connection()
     try:
-        row = conn.execute("SELECT 1 FROM students WHERE roll_no=?", (roll_no,)).fetchone()
+        next_id = get_next_resident_id(conn)
     finally:
         conn.close()
-    return JSONResponse({"exists": row is not None})
+    return JSONResponse({"next_id": next_id})
 
 
 @router.post("/register")
 async def register_submit(request: Request):
     form = await request.form()
-    try:
-        roll_no = validate_roll_no(form.get("roll_no", ""))
-    except ValueError as e:
-        return RedirectResponse(f"/register?error={e}", status_code=302)
-
     name = form.get("name", "").strip()
-    batch = form.get("batch", "").strip() or None
-    year = int(form.get("year") or 1)
-    section = form.get("section", "").strip() or None
+    room_no = form.get("room_no", "").strip()
 
     if not name:
         return RedirectResponse("/register?error=Name is required", status_code=302)
+    if not room_no:
+        return RedirectResponse("/register?error=Room number is required", status_code=302)
 
     conn = get_connection()
     try:
-        existing = conn.execute("SELECT 1 FROM students WHERE roll_no=?", (roll_no,)).fetchone()
-        if existing is not None:
-            return RedirectResponse(
-                f"/register?error={roll_no} is already registered. "
-                "See the lab in-charge if this is a mistake.",
-                status_code=302,
-            )
+        resident_id = get_next_resident_id(conn)
         conn.execute(
-            "INSERT INTO students (roll_no, name, year, department, batch, section) "
-            "VALUES (?,?,?,?,?,?)",
-            (roll_no, name, year, "", batch, section),
+            "INSERT INTO residents (resident_id, name, room_no) VALUES (?,?,?)",
+            (resident_id, name, room_no),
         )
         conn.commit()
     finally:
         conn.close()
 
     return RedirectResponse(
-        f"/register?success=Details saved for {roll_no}. "
-        "Please visit the lab to complete your face capture.",
+        f"/register?success=Registered successfully! Your Resident ID is {resident_id}. "
+        "Please visit the warden's office to complete your face capture.",
         status_code=302,
     )

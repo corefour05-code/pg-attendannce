@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .venv/
+venv/
 
 # Runtime data — real student/faculty PII, biometric embeddings, secrets.
 # Never commit these; transfer via USB/local network instead of git.

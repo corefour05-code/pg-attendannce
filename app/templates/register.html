@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Student Registration - PSNA Lab Attendance</title>
+<title>Resident Registration - PG Hostel Attendance</title>
 <link rel="stylesheet" href="/static/design-system.css" />
 <style>
   body {
@@ -19,73 +19,46 @@
     width: 100%;
     max-width: 440px;
     padding: 2.5rem;
-    border-radius: 8px;
+    border-radius: 12px;
     background: var(--white);
     box-shadow: var(--box-shadow);
     text-align: center;
   }
-  .auth-card h2 { margin: 0 0 0.4rem; }
+  .auth-card h2 { margin: 0 0 0.4rem; font-size: 1.5rem; }
   .auth-card .subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
-  .auth-card form { display: flex; flex-direction: column; gap: 0.9rem; text-align: left; }
+  .auth-card form { display: flex; flex-direction: column; gap: 1rem; text-align: left; }
   .auth-card .helper { margin-top: 1.25rem; font-size: 0.8rem; color: var(--text-muted); }
+  .id-preview-badge {
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    color: #1D4ED8;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    text-align: center;
+    font-size: 0.95rem;
+  }
 </style>
 </head>
 <body>
   <div class="auth-card">
-    <h2>Student Registration</h2>
-    <p class="subtitle">Enter your basic details now. Face capture happens later at the lab.</p>
+    <h2>Resident Registration</h2>
+    <p class="subtitle">Enter your name and room number. Face photos will be captured at the office.</p>
     {% if error %}<div class="flash-message error">{{ error }}</div>{% endif %}
     {% if success %}<div class="flash-message success">{{ success }}</div>{% endif %}
     <form method="post" action="/register" id="register-form">
-      <label>Student ID / Register Number *
-        <input type="text" name="roll_no" id="roll_no-input" class="form-control" required placeholder="e.g. 23it112" />
-        <div id="roll-no-warning" class="status err" style="display:none;">Already registered — see the lab in-charge if this is a mistake.</div>
+      <div class="id-preview-badge">
+        Assigned ID: <strong>{{ suggested_id }}</strong>
+      </div>
+      <label>Full Name *
+        <input type="text" name="name" class="form-control" placeholder="e.g. John Doe" required autofocus />
       </label>
-      <label>Name *
-        <input type="text" name="name" class="form-control" required />
+      <label>Room Number *
+        <input type="text" name="room_no" class="form-control" placeholder="e.g. 101" required />
       </label>
-      <label>Batch (e.g. 2023-2027)
-        <input type="text" name="batch" class="form-control" />
-      </label>
-      <label>Year
-        <select name="year" class="form-control">
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-          <option value="4">4</option>
-        </select>
-      </label>
-      <label>Section
-        <input type="text" name="section" class="form-control" />
-      </label>
-      <button type="submit" class="btn btn-primary btn-block" id="submit-btn">Save Details</button>
+      <button type="submit" class="btn btn-primary btn-block" id="submit-btn" style="padding:0.75rem;">Register Details</button>
     </form>
-    <div class="helper">Made a typo? See the lab in-charge to have it corrected — the form only accepts each ID once.</div>
+    <div class="helper">Your Resident ID is automatically generated. Please take note of your ID after submitting.</div>
   </div>
-  <script>
-    const rollNoInput = document.getElementById('roll_no-input');
-    const rollNoWarning = document.getElementById('roll-no-warning');
-    const submitBtn = document.getElementById('submit-btn');
-
-    async function checkRollNo() {
-      const value = rollNoInput.value.trim();
-      rollNoWarning.style.display = 'none';
-      submitBtn.disabled = false;
-      if (!value) { return; }
-      try {
-        const res = await fetch(`/register/check?roll_no=${encodeURIComponent(value)}`);
-        const data = await res.json();
-        if (data.exists) {
-          rollNoWarning.style.display = 'block';
-          submitBtn.disabled = true;
-        }
-      } catch (e) { /* non-fatal, server re-checks on submit */ }
-    }
-    rollNoInput.addEventListener('blur', checkRollNo);
-    rollNoInput.addEventListener('input', () => {
-      rollNoWarning.style.display = 'none';
-      submitBtn.disabled = false;
-    });
-  </script>
 </body>
 </html>

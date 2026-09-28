@@ -1,10 +1,10 @@
 {% extends "base_admin.html" %}
-{% block title %}Lab Report{% endblock %}
+{% block title %}Movement & Attendance Report{% endblock %}
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem;">
   <div>
-    <h1 style="margin-bottom:0.25rem;">Lab Report</h1>
-    <p style="color: var(--text-muted); margin:0;">Date wise lab attendance report.</p>
+    <h1 style="margin-bottom:0.25rem;">Movement & Attendance Report</h1>
+    <p style="color: var(--text-muted); margin:0;">Complete log of all OUT and IN movement events.</p>
   </div>
   <a class="btn btn-outline" href="/report/pdf?{{ query_string }}"><i class="ph ph-download"></i>Download Report (PDF)</a>
 </div>
@@ -17,106 +17,78 @@
     <label style="margin:0;">To Date
       <input type="date" name="to_date" class="form-control" value="{{ to_date }}" />
     </label>
-    <label style="margin:0;">Laboratory
-      {% if is_main_admin %}
-      <select name="lab_id" class="form-control">
-        <option value="">All Laboratories</option>
-        {% for lab in labs %}
-        <option value="{{ lab.id }}" {{ 'selected' if lab.id == selected_lab_id else '' }}>{{ lab.name }}</option>
-        {% endfor %}
-      </select>
-      {% else %}
-      <select class="form-control" disabled>
-        <option>{{ locked_lab_name }}</option>
-      </select>
-      <input type="hidden" name="lab_id" value="{{ selected_lab_id }}" />
-      {% endif %}
-    </label>
-    <label style="margin:0;">Section
-      <input type="text" name="section" id="filter-section" class="form-control" value="{{ section or '' }}" />
-    </label>
-    <label style="margin:0;">Year
-      <input type="text" name="year" id="filter-year" class="form-control" value="{{ year or '' }}" />
+    <label style="margin:0;">Room No
+      <input type="text" name="room_no" id="filter-room" class="form-control" value="{{ room_no or '' }}" placeholder="e.g. 101" />
     </label>
     <label style="margin:0;">Type
       <select name="kind" class="form-control">
         <option value="all" {{ 'selected' if kind == 'all' else '' }}>All</option>
-        <option value="student" {{ 'selected' if kind == 'student' else '' }}>Students</option>
-        <option value="faculty" {{ 'selected' if kind == 'faculty' else '' }}>Faculty</option>
+        <option value="resident" {{ 'selected' if kind == 'resident' else '' }}>Residents</option>
+        <option value="staff" {{ 'selected' if kind == 'staff' else '' }}>Staff</option>
+      </select>
+    </label>
+    <label style="margin:0;">Movement
+      <select name="direction" class="form-control">
+        <option value="ALL" {{ 'selected' if direction == 'ALL' else '' }}>All Movements</option>
+        <option value="OUT" {{ 'selected' if direction == 'OUT' else '' }}>OUT Only</option>
+        <option value="IN" {{ 'selected' if direction == 'IN' else '' }}>IN Only</option>
       </select>
     </label>
     <label style="margin:0; flex-grow:1;">Search Name/ID
-      <input type="text" name="q" id="filter-q" class="form-control" value="{{ q or '' }}" />
+      <input type="text" name="q" id="filter-q" class="form-control" value="{{ q or '' }}" placeholder="Name or Resident ID" />
     </label>
     <button type="submit" class="btn btn-primary">SEARCH</button>
+    <a class="btn btn-outline" href="/report">RESET</a>
   </form>
 </div>
 
 <div class="card" style="margin-bottom:1.5rem;">
-  <div style="display:flex; flex-wrap:wrap; gap:1.75rem; align-items:flex-start;">
+  <div style="display:flex; flex-wrap:wrap; gap:2rem; align-items:flex-start;">
     <div>
       <strong style="font-size:1.4rem; color:var(--primary-blue);">{{ total_records }}</strong>
-      <div style="color:var(--text-muted); font-size:0.8rem;">Total Records</div>
+      <div style="color:var(--text-muted); font-size:0.8rem;">Total Movements Logged</div>
     </div>
     <div>
-      <strong style="font-size:1.4rem;">{{ unique_students }}</strong>
-      <div style="color:var(--text-muted); font-size:0.8rem;">Unique Students</div>
+      <strong style="font-size:1.4rem;">{{ unique_residents }}</strong>
+      <div style="color:var(--text-muted); font-size:0.8rem;">Active Residents</div>
     </div>
     <div>
-      <strong style="font-size:1.4rem;">{{ unique_faculty }}</strong>
-      <div style="color:var(--text-muted); font-size:0.8rem;">Unique Faculty</div>
+      <strong style="font-size:1.4rem;">{{ unique_staff }}</strong>
+      <div style="color:var(--text-muted); font-size:0.8rem;">Active Staff</div>
     </div>
-    {% if year_counts %}
-    <div style="flex-grow:1; min-width:180px;">
-      <div style="color:var(--text-muted); font-size:0.8rem; margin-bottom:0.4rem;">By Year</div>
-      <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">
-        {% for y, c in year_counts %}<span class="badge badge-blue">Year {{ y }}: {{ c }}</span>{% endfor %}
-      </div>
-    </div>
-    {% endif %}
-    {% if section_counts %}
-    <div style="flex-grow:1; min-width:180px;">
-      <div style="color:var(--text-muted); font-size:0.8rem; margin-bottom:0.4rem;">By Section</div>
-      <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">
-        {% for s, c in section_counts %}<span class="badge badge-teal">{{ s }}: {{ c }}</span>{% endfor %}
-      </div>
-    </div>
-    {% endif %}
   </div>
 </div>
 
 <div class="card" style="padding:0; overflow:hidden;">
   <div style="overflow-x:auto;">
-    <table id="report-table" style="white-space:nowrap;">
+    <table id="report-table" style="white-space:nowrap; width:100%;">
       <thead>
         <tr>
-          <th>S.No</th><th>Type</th><th>ID</th><th>Name</th><th>Section</th><th>Batch</th><th>Year</th>
-          <th>Laboratory</th><th>In Time</th><th>Period In</th><th>In Date</th>
-          <th>Out Time</th><th>Period Out</th><th>Out Date</th>
+          <th>S.No</th><th>Type</th><th>ID</th><th>Name</th><th>Room No</th>
+          <th>Movement</th><th>Time</th><th>Date</th>
         </tr>
       </thead>
       <tbody>
         {% for r in rows %}
+        {% set is_out = r.direction | upper == 'OUT' %}
         <tr>
           <td>{{ loop.index }}</td>
-          <td><span class="badge badge-{{ 'blue' if r.kind == 'student' else 'purple' }}">{{ r.kind | capitalize }}</span></td>
-          <td>{{ r.person_id }}</td>
-          <td>{{ r.name }}</td>
-          <td>{{ r.section or '-' }}</td>
-          <td>{{ r.batch or '-' }}</td>
-          <td>{{ r.year or '-' }}</td>
-          <td><span class="badge badge-{{ lab_badge_color(r.lab_id) }}">{{ r.lab_name }}</span></td>
-          <td style="color: var(--success); font-weight:600;">{{ r.in_time | dt_time12 }}</td>
-          <td>{{ r.period_in or '-' }}</td>
-          <td>{{ r.in_date or '-' }}</td>
-          <td style="color: var(--danger); font-weight:600;">{{ r.out_time | dt_time12 }}</td>
-          <td>{{ r.period_out or '-' }}</td>
-          <td>{{ r.out_date or '-' }}</td>
+          <td><span class="badge badge-{{ 'blue' if r.kind == 'resident' else 'purple' }}">{{ r.kind | capitalize }}</span></td>
+          <td><code>{{ r.person_id }}</code></td>
+          <td style="font-weight:600; color:var(--primary-blue);">{{ r.name }}</td>
+          <td>{{ r.room_no or '-' }}</td>
+          <td>
+            <span style="display:inline-block; padding:0.25rem 0.6rem; border-radius:6px; font-weight:700; font-size:0.8rem; background:{{ '#fee2e2' if is_out else '#dcfce7' }}; color:{{ '#b91c1c' if is_out else '#15803d' }}; border:1px solid {{ '#fca5a5' if is_out else '#86efac' }};">
+              {{ '▲ OUT' if is_out else '▼ IN' }}
+            </span>
+          </td>
+          <td style="font-weight:600;">{{ r.punch_time | dt_time12 }}</td>
+          <td style="color:var(--text-muted);">{{ r.punch_date or '-' }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="14" style="text-align:center; color:var(--text-muted); padding:2.5rem;">
+        <tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:2.5rem;">
           <i class="ph ph-file-search" style="font-size:2rem; display:block; margin-bottom:0.5rem;"></i>
-          No attendance records found for the selected dates.
+          No movement records found for the selected dates.
         </td></tr>
         {% endfor %}
       </tbody>
@@ -126,22 +98,18 @@
 
 <script>
 function liveFilter() {
-  const section = document.getElementById('filter-section').value.toLowerCase();
-  const year = document.getElementById('filter-year').value.toLowerCase();
+  const room = document.getElementById('filter-room').value.toLowerCase();
   const q = document.getElementById('filter-q').value.toLowerCase();
   document.querySelectorAll('#report-table tbody tr').forEach((row) => {
     const cells = row.querySelectorAll('td');
-    if (cells.length < 14) return;
-    const rowSection = cells[4].textContent.toLowerCase();
-    const rowYear = cells[6].textContent.toLowerCase();
+    if (cells.length < 8) return;
+    const rowRoom = cells[4].textContent.toLowerCase();
     const rowText = row.textContent.toLowerCase();
-    const matches = (!section || rowSection.includes(section))
-      && (!year || rowYear.includes(year))
-      && (!q || rowText.includes(q));
+    const matches = (!room || rowRoom.includes(room)) && (!q || rowText.includes(q));
     row.style.display = matches ? '' : 'none';
   });
 }
-['filter-section', 'filter-year', 'filter-q'].forEach((id) => {
+['filter-room', 'filter-q'].forEach((id) => {
   document.getElementById(id).addEventListener('keyup', liveFilter);
 });
 </script>

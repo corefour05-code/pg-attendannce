@@ -1,4 +1,4 @@
-"""Phase 7: filterable Lab Attendance Report + PDF export."""
+"""Filterable Hostel Attendance Report (All movement records) + PDF export."""
 
 import io
 import sys
@@ -11,10 +11,10 @@ from fastapi import APIRouter, Request
 from fastapi.responses import Response
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Table, TableStyle
 
-from app.deps import admin_template_context, is_main_admin, require_admin
+from app.deps import admin_template_context, require_admin
 from app.templating import templates
 from core.time_format import format_datetime_time_12h
 from db.connection import get_connection
@@ -22,159 +22,119 @@ from db.connection import get_connection
 router = APIRouter()
 
 REPORT_COLUMNS = [
-    "S.No", "Type", "ID", "Name", "Section", "Batch", "Year",
-    "Laboratory", "In Time", "Period In", "In Date", "Out Time", "Period Out", "Out Date",
+    "S.No", "Type", "ID", "Name", "Room No", "Movement", "Time", "Date",
 ]
 
 
-def _build_filters(request: Request, user: dict):
+def _build_filters(request: Request):
     from_date = request.query_params.get("from_date") or date.today().isoformat()
     to_date = request.query_params.get("to_date") or date.today().isoformat()
     q = request.query_params.get("q", "").strip()
-    section = request.query_params.get("section", "").strip()
-    year = request.query_params.get("year", "").strip()
+    room_no = request.query_params.get("room_no", "").strip()
+    direction = request.query_params.get("direction", "all").strip().upper()
+    if direction not in ("ALL", "OUT", "IN"):
+        direction = "ALL"
+
     kind = request.query_params.get("kind", "all").strip().lower()
-    if kind not in ("all", "student", "faculty"):
+    if kind not in ("all", "resident", "staff"):
         kind = "all"
 
-    if is_main_admin(user):
-        lab_id_param = request.query_params.get("lab_id")
-        lab_id = int(lab_id_param) if lab_id_param else None
-    else:
-        lab_id = user["lab_id"]
-
-    return from_date, to_date, lab_id, section, year, q, kind
+    return from_date, to_date, room_no, q, kind, direction
 
 
-def _fetch_rows(conn, from_date, to_date, lab_id, section, year, q, kind):
-    """Unified student + faculty attendance rows. `kind` selects which half(es)
-    to include ('all' unions both); section/year only ever apply to the
-    student half since faculty have no such columns — they're simply ignored
-    (not excluded) when browsing faculty rows."""
-    student_sql = (
-        "SELECT s.roll_no AS person_id, s.name AS name, 'student' AS kind, "
-        "s.section AS section, s.batch AS batch, s.year AS year, "
-        "l.id AS lab_id, l.name AS lab_name, "
-        "a.in_time, pin.period_name AS period_in, a.session_date AS in_date, "
-        "a.out_time, pout.period_name AS period_out, a.out_date "
+def _fetch_rows(conn, from_date, to_date, room_no, q, kind, direction):
+    """Unified resident + staff movement rows."""
+    resident_sql = (
+        "SELECT 'resident' AS kind, r.resident_id AS person_id, r.name AS name, "
+        "r.room_no AS room_no, a.direction AS direction, a.punch_time, a.punch_date "
         "FROM attendance a "
-        "JOIN students s ON s.roll_no = a.roll_no "
-        "JOIN labs l ON l.id = a.lab_id "
-        "LEFT JOIN periods pin ON pin.id = a.in_period_id "
-        "LEFT JOIN periods pout ON pout.id = a.out_period_id "
-        "WHERE a.session_date BETWEEN ? AND ?"
+        "JOIN residents r ON r.resident_id = a.resident_id "
+        "WHERE a.punch_date BETWEEN ? AND ?"
     )
-    student_params: list = [from_date, to_date]
-    if lab_id is not None:
-        student_sql += " AND a.lab_id = ?"
-        student_params.append(lab_id)
-    if section:
-        student_sql += " AND s.section = ?"
-        student_params.append(section)
-    if year:
-        student_sql += " AND s.year = ?"
-        student_params.append(int(year))
+    resident_params: list = [from_date, to_date]
+    if room_no:
+        resident_sql += " AND r.room_no = ?"
+        resident_params.append(room_no)
     if q:
-        student_sql += " AND (s.name LIKE ? OR s.roll_no LIKE ?)"
-        student_params.extend([f"%{q}%", f"%{q}%"])
+        resident_sql += " AND (r.name LIKE ? OR r.resident_id LIKE ?)"
+        resident_params.extend([f"%{q}%", f"%{q}%"])
+    if direction != "ALL":
+        resident_sql += " AND UPPER(a.direction) = ?"
+        resident_params.append(direction)
 
-    faculty_sql = (
-        "SELECT f.faculty_id AS person_id, f.name AS name, 'faculty' AS kind, "
-        "NULL AS section, f.designation AS batch, NULL AS year, "
-        "l.id AS lab_id, l.name AS lab_name, "
-        "fa.in_time, pin.period_name AS period_in, fa.session_date AS in_date, "
-        "fa.out_time, pout.period_name AS period_out, fa.out_date "
-        "FROM faculty_attendance fa "
-        "JOIN faculty f ON f.faculty_id = fa.faculty_id "
-        "JOIN labs l ON l.id = fa.lab_id "
-        "LEFT JOIN periods pin ON pin.id = fa.in_period_id "
-        "LEFT JOIN periods pout ON pout.id = fa.out_period_id "
-        "WHERE fa.session_date BETWEEN ? AND ?"
+    staff_sql = (
+        "SELECT 'staff' AS kind, s.staff_id AS person_id, s.name AS name, "
+        "s.designation AS room_no, sa.direction AS direction, sa.punch_time, sa.punch_date "
+        "FROM staff_attendance sa "
+        "JOIN staff s ON s.staff_id = sa.staff_id "
+        "WHERE sa.punch_date BETWEEN ? AND ?"
     )
-    faculty_params: list = [from_date, to_date]
-    if lab_id is not None:
-        faculty_sql += " AND fa.lab_id = ?"
-        faculty_params.append(lab_id)
+    staff_params: list = [from_date, to_date]
     if q:
-        faculty_sql += " AND (f.name LIKE ? OR f.faculty_id LIKE ?)"
-        faculty_params.extend([f"%{q}%", f"%{q}%"])
+        staff_sql += " AND (s.name LIKE ? OR s.staff_id LIKE ?)"
+        staff_params.extend([f"%{q}%", f"%{q}%"])
+    if direction != "ALL":
+        staff_sql += " AND UPPER(sa.direction) = ?"
+        staff_params.append(direction)
 
-    if kind == "student":
-        sql, params = student_sql, student_params
-    elif kind == "faculty":
-        sql, params = faculty_sql, faculty_params
+    if kind == "resident":
+        sql, params = resident_sql, resident_params
+    elif kind == "staff":
+        sql, params = staff_sql, staff_params
     else:
-        sql = f"{student_sql} UNION ALL {faculty_sql}"
-        params = student_params + faculty_params
+        sql = f"{resident_sql} UNION ALL {staff_sql}"
+        params = resident_params + staff_params
 
-    sql += " ORDER BY in_time DESC"
+    sql += " ORDER BY punch_time DESC"
     return conn.execute(sql, params).fetchall()
 
 
 @router.get("/report")
-def lab_report(request: Request):
+def attendance_report(request: Request):
     user, redirect = require_admin(request)
     if redirect:
         return redirect
 
-    from_date, to_date, lab_id, section, year, q, kind = _build_filters(request, user)
+    from_date, to_date, room_no, q, kind, direction = _build_filters(request)
 
     conn = get_connection()
     try:
-        rows = _fetch_rows(conn, from_date, to_date, lab_id, section, year, q, kind)
-        labs = conn.execute("SELECT * FROM labs ORDER BY name").fetchall()
-        locked_lab_name = None
-        if not is_main_admin(user) and user["lab_id"] is not None:
-            lab_row = conn.execute("SELECT name FROM labs WHERE id=?", (user["lab_id"],)).fetchone()
-            locked_lab_name = lab_row["name"] if lab_row else "Unknown Lab"
+        rows = _fetch_rows(conn, from_date, to_date, room_no, q, kind, direction)
     finally:
         conn.close()
 
-    unique_students = len({r["person_id"] for r in rows if r["kind"] == "student"})
-    unique_faculty = len({r["person_id"] for r in rows if r["kind"] == "faculty"})
-    year_counts: dict[int, int] = {}
-    section_counts: dict[str, int] = {}
-    for r in rows:
-        if r["kind"] != "student":
-            continue
-        year_counts[r["year"]] = year_counts.get(r["year"], 0) + 1
-        sec = r["section"] or "Unassigned"
-        section_counts[sec] = section_counts.get(sec, 0) + 1
+    unique_residents = len({r["person_id"] for r in rows if r["kind"] == "resident"})
+    unique_staff = len({r["person_id"] for r in rows if r["kind"] == "staff"})
 
     context = {
         **admin_template_context(user),
         "active_nav": "report",
         "rows": rows,
-        "labs": labs,
         "from_date": from_date,
         "to_date": to_date,
-        "selected_lab_id": lab_id,
-        "locked_lab_name": locked_lab_name,
-        "section": section,
-        "year": year,
+        "room_no": room_no,
         "q": q,
         "kind": kind,
+        "direction": direction,
         "query_string": request.url.query,
         "total_records": len(rows),
-        "unique_students": unique_students,
-        "unique_faculty": unique_faculty,
-        "year_counts": sorted(year_counts.items()),
-        "section_counts": sorted(section_counts.items()),
+        "unique_residents": unique_residents,
+        "unique_staff": unique_staff,
     }
     return templates.TemplateResponse(request, "report.html", context)
 
 
 @router.get("/report/pdf")
-def lab_report_pdf(request: Request):
+def attendance_report_pdf(request: Request):
     user, redirect = require_admin(request)
     if redirect:
         return redirect
 
-    from_date, to_date, lab_id, section, year, q, kind = _build_filters(request, user)
+    from_date, to_date, room_no, q, kind, direction = _build_filters(request)
 
     conn = get_connection()
     try:
-        rows = _fetch_rows(conn, from_date, to_date, lab_id, section, year, q, kind)
+        rows = _fetch_rows(conn, from_date, to_date, room_no, q, kind, direction)
     finally:
         conn.close()
 
@@ -185,20 +145,24 @@ def lab_report_pdf(request: Request):
     data = [REPORT_COLUMNS]
     for i, r in enumerate(rows, start=1):
         data.append([
-            str(i), r["kind"].capitalize(), r["person_id"], r["name"], r["section"] or "-",
-            r["batch"] or "-", str(r["year"]) if r["year"] else "-", r["lab_name"],
-            format_datetime_time_12h(r["in_time"]), r["period_in"] or "-", r["in_date"] or "-",
-            format_datetime_time_12h(r["out_time"]), r["period_out"] or "-", r["out_date"] or "-",
+            str(i),
+            r["kind"].capitalize(),
+            r["person_id"],
+            r["name"],
+            r["room_no"] or "-",
+            r["direction"].upper(),
+            format_datetime_time_12h(r["punch_time"]),
+            r["punch_date"] or "-",
         ])
 
     elements = [
-        Paragraph(f"Lab Attendance Report ({from_date} to {to_date})", styles["Title"]),
+        Paragraph(f"Hostel Movement & Attendance Report ({from_date} to {to_date})", styles["Title"]),
     ]
     table = Table(data, repeatRows=1)
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#077c3c")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cccccc")),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8F9FA")]),
     ]))
@@ -210,5 +174,5 @@ def lab_report_pdf(request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=lab_report_{kind}_{from_date}_to_{to_date}.pdf"},
+        headers={"Content-Disposition": f"attachment; filename=hostel_movement_report_{from_date}_to_{to_date}.pdf"},
     )

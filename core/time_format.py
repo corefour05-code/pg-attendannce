@@ -1,7 +1,7 @@
 """Render stored 24-hour time strings as 12-hour AM/PM for display. Storage
-stays 24-hour (periods.start_time/end_time as "HH:MM", attendance timestamps
-as "YYYY-MM-DD HH:MM:SS") since that's what lexicographic comparison in the
-scanner's period-lookup and dedup logic depends on — these helpers are
+stays 24-hour (curfew_times.time as "HH:MM", attendance timestamps as
+"YYYY-MM-DD HH:MM:SS") since that's what lexicographic comparison in the
+curfew-schedule and dedup logic depends on — these helpers are
 presentation-only, used by templates/JSON responses, never by storage or
 comparisons."""
 

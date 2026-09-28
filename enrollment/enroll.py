@@ -1,8 +1,8 @@
-"""Enroll a student: capture several angles via webcam, validate each capture,
+"""Enroll a resident: capture several angles via webcam, validate each capture,
 generate embeddings, and store them in the DB.
 
 Usage:
-    python enrollment/enroll.py --roll_no 23it112 --name "Jane Doe" --year 2 --department IT
+    python enrollment/enroll.py --resident_id RES-001 --name "Jane Doe" --room_no 101
 
 Controls during capture:
     SPACE - attempt a capture for the current angle
@@ -31,39 +31,61 @@ from core.face_engine import get_face_app
 from db.connection import get_connection
 from enrollment.validation import validate_capture
 
-ROLL_NO_PATTERN = re.compile(r"^\d+[a-z]+\d+$")
+RESIDENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,30}$")
 WINDOW_NAME = "Enrollment - SPACE=capture  ESC=cancel"
 
 
-def validate_roll_no(roll_no: str) -> str:
-    roll_no = roll_no.strip().lower()
-    if not ROLL_NO_PATTERN.match(roll_no):
+def get_next_resident_id(conn) -> str:
+    """Generate the next sequential resident ID in the format RES-001, RES-002, etc."""
+    rows = conn.execute("SELECT resident_id FROM residents").fetchall()
+    max_num = 0
+    for r in rows:
+        rid = (r["resident_id"] or "").strip().upper()
+        match = re.match(r"^RES-(\d+)$", rid, re.IGNORECASE)
+        if match:
+            num = int(match.group(1))
+            if num > max_num:
+                max_num = num
+        else:
+            digits = re.findall(r"\d+", rid)
+            if digits:
+                num = int(digits[-1])
+                if num > max_num:
+                    max_num = num
+    return f"RES-{max_num + 1:03d}"
+
+
+def validate_resident_id(resident_id: str) -> str:
+    resident_id = resident_id.strip()
+    if not RESIDENT_ID_PATTERN.match(resident_id):
         raise ValueError(
-            f"roll_no '{roll_no}' doesn't match expected format "
-            "(digits, then letters, then digits - e.g. 23it112 or 25itle123)"
+            f"resident_id '{resident_id}' doesn't match expected format "
+            "(letters/digits/hyphens - e.g. RES-001 or r101)"
         )
-    return roll_no
+    return resident_id
 
 
-def upsert_student(conn, roll_no: str, name: str, year: int, department: str) -> None:
-    """Insert or update a student. Also clears archived_at — (re-)enrolling
+def upsert_resident(conn, resident_id: str, name: str, room_no: str, floor: str = "") -> None:
+    """Insert or update a resident. Also clears archived_at — (re-)enrolling
     someone is always meant to make them active, including restoring a
-    previously archived roll number."""
-    existing = conn.execute("SELECT roll_no FROM students WHERE roll_no=?", (roll_no,)).fetchone()
+    previously vacated resident_id."""
+    existing = conn.execute(
+        "SELECT resident_id FROM residents WHERE resident_id=?", (resident_id,)
+    ).fetchone()
     if existing:
         conn.execute(
-            "UPDATE students SET name=?, year=?, department=?, archived_at=NULL WHERE roll_no=?",
-            (name, year, department, roll_no),
+            "UPDATE residents SET name=?, room_no=?, floor=?, archived_at=NULL WHERE resident_id=?",
+            (name, room_no, floor, resident_id),
         )
     else:
         conn.execute(
-            "INSERT INTO students (roll_no, name, year, department) VALUES (?,?,?,?)",
-            (roll_no, name, year, department),
+            "INSERT INTO residents (resident_id, name, room_no, floor) VALUES (?,?,?,?)",
+            (resident_id, name, room_no, floor),
         )
     conn.commit()
 
 
-def run_enrollment(roll_no: str, name: str, year: int, department: str) -> bool:
+def run_enrollment(resident_id: str, name: str, room_no: str, floor: str = "") -> bool:
     app = get_face_app()
 
     cap = cv2.VideoCapture(CAMERA_INDEX)
@@ -119,7 +141,7 @@ def run_enrollment(roll_no: str, name: str, year: int, department: str) -> bool:
                     continue
 
                 embedding = result.face.normed_embedding.astype(np.float32)
-                photo_path = ENROLLMENT_PHOTOS_DIR / f"{roll_no}_{angle_label}_{int(time.time())}.jpg"
+                photo_path = ENROLLMENT_PHOTOS_DIR / f"{resident_id}_{angle_label}_{int(time.time())}.jpg"
                 cv2.imwrite(str(photo_path), frame)
                 captured.append((angle_label, embedding, str(photo_path), result.sharpness))
                 print(
@@ -137,35 +159,38 @@ def run_enrollment(roll_no: str, name: str, year: int, department: str) -> bool:
 
     conn = get_connection()
     try:
-        upsert_student(conn, roll_no, name, year, department)
+        upsert_resident(conn, resident_id, name, room_no, floor)
         for angle_label, embedding, _photo_path, _sharpness in captured:
             conn.execute(
-                "INSERT INTO embeddings (roll_no, embedding, angle_label) VALUES (?,?,?)",
-                (roll_no, embedding.tobytes(), angle_label),
+                "INSERT INTO embeddings (resident_id, embedding, angle_label) VALUES (?,?,?)",
+                (resident_id, embedding.tobytes(), angle_label),
             )
         conn.commit()
     finally:
         conn.close()
 
-    print(f"Enrolled {roll_no} ({name}) with {len(captured)} embeddings.")
+    print(f"Enrolled {resident_id} ({name}) with {len(captured)} embeddings.")
     return True
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Enroll a student for face recognition attendance")
-    parser.add_argument("--roll_no", required=True, help="e.g. 23it112")
+    parser = argparse.ArgumentParser(description="Enroll a resident for face recognition attendance")
+    parser.add_argument("--resident_id", help="e.g. RES-001 (auto-generated if omitted)")
     parser.add_argument("--name", required=True)
-    parser.add_argument("--year", type=int, required=True, choices=[1, 2, 3, 4])
-    parser.add_argument("--department", required=True)
+    parser.add_argument("--room_no", required=True)
+    parser.add_argument("--floor", default="")
     args = parser.parse_args()
 
+    conn = get_connection()
     try:
-        roll_no = validate_roll_no(args.roll_no)
-    except ValueError as e:
-        print(f"ERROR: {e}")
-        sys.exit(1)
+        if args.resident_id:
+            resident_id = validate_resident_id(args.resident_id)
+        else:
+            resident_id = get_next_resident_id(conn)
+    finally:
+        conn.close()
 
-    run_enrollment(roll_no, args.name.strip(), args.year, args.department.strip())
+    run_enrollment(resident_id, args.name.strip(), args.room_no.strip(), args.floor.strip())
 
 
 if __name__ == "__main__":

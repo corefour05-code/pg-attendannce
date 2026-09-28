@@ -2,9 +2,9 @@
 {% block title %}Attendance Portal{% endblock %}
 {% block content %}
 <h2>Attendance Portal</h2>
-<div class="subtitle">Enter the lab passcode to launch the camera</div>
+<div class="subtitle">Enter the gate passcode to launch the camera</div>
 <form method="post" action="/attendance_login">
-  <input type="password" name="passcode" class="form-control" placeholder="Lab Passcode" required />
+  <input type="password" name="passcode" class="form-control" placeholder="Gate Passcode" required />
   <div class="hint">Hint: attendance123</div>
   <button type="submit" class="btn btn-primary btn-block">Launch Recognition</button>
 </form>

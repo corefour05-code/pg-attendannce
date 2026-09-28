@@ -1,4 +1,4 @@
-"""Phase 4: Manage Users (accounts + role/lab assignment). Main-admin only."""
+"""Manage Users (accounts + role). Admin only."""
 
 import sys
 from pathlib import Path
@@ -11,7 +11,7 @@ from fastapi.responses import RedirectResponse
 from core.security import hash_password
 from db.connection import get_connection
 
-from app.deps import admin_template_context, require_main_admin
+from app.deps import admin_template_context, require_admin
 from app.templating import templates
 
 router = APIRouter()
@@ -19,26 +19,17 @@ router = APIRouter()
 
 @router.get("/users")
 def users_list(request: Request):
-    user, redirect = require_main_admin(request)
+    user, redirect = require_admin(request)
     if redirect:
         return redirect
 
     conn = get_connection()
     try:
-        rows = conn.execute(
-            "SELECT u.id, u.username, u.role, u.lab_id, l.name AS lab_name "
-            "FROM users u LEFT JOIN labs l ON l.id = u.lab_id ORDER BY u.username"
-        ).fetchall()
-        labs = conn.execute("SELECT * FROM labs ORDER BY name").fetchall()
+        rows = conn.execute("SELECT id, username, role FROM users ORDER BY username").fetchall()
     finally:
         conn.close()
 
-    context = {
-        **admin_template_context(user),
-        "active_nav": "users",
-        "users": rows,
-        "labs": labs,
-    }
+    context = {**admin_template_context(user), "active_nav": "users", "users": rows}
     return templates.TemplateResponse(request, "users.html", context)
 
 
@@ -48,9 +39,8 @@ def user_add(
     username: str = Form(...),
     password: str = Form(...),
     role: str = Form(...),
-    lab_id: str = Form(""),
 ):
-    user, redirect = require_main_admin(request)
+    user, redirect = require_admin(request)
     if redirect:
         return redirect
 
@@ -60,8 +50,8 @@ def user_add(
         if existing:
             return RedirectResponse(f"/users?error=Username '{username}' already exists", status_code=302)
         conn.execute(
-            "INSERT INTO users (username, password_hash, role, lab_id) VALUES (?,?,?,?)",
-            (username.strip(), hash_password(password), role, int(lab_id) if lab_id else None),
+            "INSERT INTO users (username, password_hash, role) VALUES (?,?,?)",
+            (username.strip(), hash_password(password), role),
         )
         conn.commit()
     finally:
@@ -77,9 +67,8 @@ def user_edit(
     username: str = Form(...),
     password: str = Form(""),
     role: str = Form(...),
-    lab_id: str = Form(""),
 ):
-    user, redirect = require_main_admin(request)
+    user, redirect = require_admin(request)
     if redirect:
         return redirect
 
@@ -93,13 +82,13 @@ def user_edit(
 
         if password:
             conn.execute(
-                "UPDATE users SET username=?, password_hash=?, role=?, lab_id=? WHERE id=?",
-                (username.strip(), hash_password(password), role, int(lab_id) if lab_id else None, user_id),
+                "UPDATE users SET username=?, password_hash=?, role=? WHERE id=?",
+                (username.strip(), hash_password(password), role, user_id),
             )
         else:
             conn.execute(
-                "UPDATE users SET username=?, role=?, lab_id=? WHERE id=?",
-                (username.strip(), role, int(lab_id) if lab_id else None, user_id),
+                "UPDATE users SET username=?, role=? WHERE id=?",
+                (username.strip(), role, user_id),
             )
         conn.commit()
     finally:
@@ -110,7 +99,7 @@ def user_edit(
 
 @router.post("/users/{user_id}/delete")
 def user_delete(request: Request, user_id: int):
-    user, redirect = require_main_admin(request)
+    user, redirect = require_admin(request)
     if redirect:
         return redirect
     conn = get_connection()

@@ -1,16 +1,16 @@
 {% extends "base_admin.html" %}
-{% block title %}Old Students{% endblock %}
+{% block title %}Vacated Residents{% endblock %}
 {% block extra_head %}
 <style>
-  .os-modal-overlay {
+  .vr-modal-overlay {
     display: none;
     position: fixed; inset: 0;
     background: rgba(15,20,25,0.6);
     align-items: center; justify-content: center;
     z-index: 50;
   }
-  .os-modal-overlay.open { display: flex; }
-  .os-modal-panel {
+  .vr-modal-overlay.open { display: flex; }
+  .vr-modal-panel {
     background: var(--white);
     border-radius: var(--border-radius);
     padding: 2rem;
@@ -18,25 +18,25 @@
     width: 100%;
     text-align: center;
   }
-  .os-modal-actions { display: flex; gap: 1rem; margin-top: 1.5rem; }
-  .os-modal-actions .btn { flex: 1; }
+  .vr-modal-actions { display: flex; gap: 1rem; margin-top: 1.5rem; }
+  .vr-modal-actions .btn { flex: 1; }
 </style>
 {% endblock %}
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem;">
   <div>
-    <h1 style="margin-bottom:0.25rem;">Old Students</h1>
-    <p style="color: var(--text-muted); margin:0;">Graduated students moved here by Batch Processing. Attendance history is kept, but they're no longer matched by the scanner.</p>
+    <h1 style="margin-bottom:0.25rem;">Vacated Residents</h1>
+    <p style="color: var(--text-muted); margin:0;">Residents marked as vacated. Attendance history is kept, but they're no longer matched by the scanner.</p>
   </div>
 </div>
 
 <div class="card" style="background:#F8FAFC; border:1px solid #e2e8f0; margin-bottom:1.5rem;">
-  <form method="get" action="/old-students" style="display:flex; gap:0.75rem; align-items:flex-end;">
+  <form method="get" action="/vacated-residents" style="display:flex; gap:0.75rem; align-items:flex-end;">
     <label style="flex-grow:1; margin:0;">Search (Name or ID)
-      <input type="text" id="search-input" name="q" value="{{ q or '' }}" class="form-control" placeholder="e.g. Nivi or 23it112" />
+      <input type="text" id="search-input" name="q" value="{{ q or '' }}" class="form-control" placeholder="e.g. Nivi or r101" />
     </label>
     <button type="submit" class="btn btn-primary">SEARCH</button>
-    <a class="btn btn-outline" href="/old-students">RESET</a>
+    <a class="btn btn-outline" href="/vacated-residents">RESET</a>
   </form>
 </div>
 
@@ -44,8 +44,8 @@
   <button type="button" class="btn btn-grey" id="delete-selected-btn" disabled>
     <i class="ph ph-trash"></i> Delete Selected (<span id="selected-count">0</span>)
   </button>
-  <button type="button" class="btn btn-danger" id="delete-all-btn" {{ 'disabled' if not students else '' }}>
-    <i class="ph ph-trash"></i> Delete ALL Old Students
+  <button type="button" class="btn btn-danger" id="delete-all-btn" {{ 'disabled' if not residents else '' }}>
+    <i class="ph ph-trash"></i> Delete ALL Vacated Residents
   </button>
   <span style="color: var(--text-muted); font-size:0.85rem;">
     Permanent — removes the record, face data, and attendance history from the database. Cannot be undone.
@@ -53,40 +53,37 @@
 </div>
 
 <div class="card" style="padding:0; overflow:hidden;">
-  <table id="old-students-table">
+  <table id="vacated-residents-table">
     <thead>
       <tr>
-        <th><input type="checkbox" id="select-all-checkbox" {{ 'disabled' if not students else '' }} /></th>
-        <th>Registration ID</th><th>Name</th><th>Department</th><th>Batch</th>
-        <th>Year</th><th>Section</th><th>Archived On</th>
+        <th><input type="checkbox" id="select-all-checkbox" {{ 'disabled' if not residents else '' }} /></th>
+        <th>Resident ID</th><th>Name</th><th>Room No</th><th>Floor</th><th>Vacated On</th>
       </tr>
     </thead>
     <tbody>
-      {% for s in students %}
+      {% for r in residents %}
       <tr>
-        <td><input type="checkbox" class="row-checkbox" value="{{ s.roll_no }}" /></td>
-        <td>{{ s.roll_no }}</td>
-        <td>{{ s.name }}</td>
-        <td>{{ s.department }}</td>
-        <td>{{ s.batch or '-' }}</td>
-        <td>{{ s.year }}</td>
-        <td>{{ s.section or '-' }}</td>
-        <td>{{ s.archived_at or '-' }}</td>
+        <td><input type="checkbox" class="row-checkbox" value="{{ r.resident_id }}" /></td>
+        <td>{{ r.resident_id }}</td>
+        <td>{{ r.name }}</td>
+        <td>{{ r.room_no }}</td>
+        <td>{{ r.floor or '-' }}</td>
+        <td>{{ r.archived_at or '-' }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:2rem;">No old students yet.</td></tr>
+      <tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:2rem;">No vacated residents yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 
-<div class="os-modal-overlay" id="delete-modal">
-  <div class="os-modal-panel">
-    <h3 id="delete-modal-title">Delete Old Students?</h3>
+<div class="vr-modal-overlay" id="delete-modal">
+  <div class="vr-modal-panel">
+    <h3 id="delete-modal-title">Delete Vacated Residents?</h3>
     <p id="delete-modal-text" style="color: var(--text-muted);"></p>
     <input type="password" id="delete-admin-password" class="form-control" placeholder="Your admin password" autocomplete="current-password" />
     <div class="status err" id="delete-modal-error" style="display:none;"></div>
-    <div class="os-modal-actions">
+    <div class="vr-modal-actions">
       <button class="btn btn-danger" id="delete-confirm-btn">Confirm Delete</button>
       <button class="btn btn-outline" id="delete-cancel-btn">Cancel</button>
     </div>
@@ -96,8 +93,8 @@
 <script>
 document.getElementById('search-input').addEventListener('keyup', function () {
   const q = this.value.toLowerCase();
-  document.querySelectorAll('#old-students-table tbody tr').forEach((row) => {
-    if (!row.querySelector('.row-checkbox')) return; // "no old students" placeholder row
+  document.querySelectorAll('#vacated-residents-table tbody tr').forEach((row) => {
+    if (!row.querySelector('.row-checkbox')) return; // "no vacated residents" placeholder row
     row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
   updateSelectedCount();
@@ -108,12 +105,12 @@ const deleteSelectedBtn = document.getElementById('delete-selected-btn');
 const selectedCountEl = document.getElementById('selected-count');
 
 function visibleRowCheckboxes() {
-  return Array.from(document.querySelectorAll('#old-students-table tbody .row-checkbox'))
+  return Array.from(document.querySelectorAll('#vacated-residents-table tbody .row-checkbox'))
     .filter((cb) => cb.closest('tr').style.display !== 'none');
 }
 
 function updateSelectedCount() {
-  const checked = document.querySelectorAll('#old-students-table tbody .row-checkbox:checked').length;
+  const checked = document.querySelectorAll('#vacated-residents-table tbody .row-checkbox:checked').length;
   selectedCountEl.textContent = checked;
   deleteSelectedBtn.disabled = checked === 0;
   const visible = visibleRowCheckboxes();
@@ -125,7 +122,7 @@ selectAllCheckbox?.addEventListener('change', () => {
   updateSelectedCount();
 });
 
-document.getElementById('old-students-table').addEventListener('change', (e) => {
+document.getElementById('vacated-residents-table').addEventListener('change', (e) => {
   if (e.target.classList.contains('row-checkbox')) updateSelectedCount();
 });
 
@@ -141,14 +138,14 @@ function openDeleteModal(mode) {
   deleteAdminPassword.value = '';
   deleteModalError.style.display = 'none';
   if (mode === 'all') {
-    deleteModalTitle.textContent = 'Delete ALL Old Students?';
+    deleteModalTitle.textContent = 'Delete ALL Vacated Residents?';
     deleteModalText.textContent =
-      'This permanently deletes every old student — records, face data, and attendance history. This cannot be undone.';
+      'This permanently deletes every vacated resident — records, face data, and attendance history. This cannot be undone.';
   } else {
-    const n = document.querySelectorAll('#old-students-table tbody .row-checkbox:checked').length;
-    deleteModalTitle.textContent = `Delete ${n} Selected Student(s)?`;
+    const n = document.querySelectorAll('#vacated-residents-table tbody .row-checkbox:checked').length;
+    deleteModalTitle.textContent = `Delete ${n} Selected Resident(s)?`;
     deleteModalText.textContent =
-      'This permanently deletes the selected students — records, face data, and attendance history. This cannot be undone.';
+      'This permanently deletes the selected residents — records, face data, and attendance history. This cannot be undone.';
   }
   deleteModal.classList.add('open');
   deleteAdminPassword.focus();
@@ -173,12 +170,12 @@ document.getElementById('delete-confirm-btn').addEventListener('click', async ()
 
   const payload = { mode: pendingMode, admin_password: password };
   if (pendingMode === 'selected') {
-    payload.roll_nos = Array.from(document.querySelectorAll('#old-students-table tbody .row-checkbox:checked'))
+    payload.resident_ids = Array.from(document.querySelectorAll('#vacated-residents-table tbody .row-checkbox:checked'))
       .map((cb) => cb.value);
   }
 
   try {
-    const res = await fetch('/old-students/delete', {
+    const res = await fetch('/vacated-residents/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -189,7 +186,7 @@ document.getElementById('delete-confirm-btn').addEventListener('click', async ()
       deleteModalError.style.display = 'block';
       return;
     }
-    window.location.href = `/old-students?success=${encodeURIComponent('Permanently deleted ' + data.deleted + ' old student(s).')}`;
+    window.location.href = `/vacated-residents?success=${encodeURIComponent('Permanently deleted ' + data.deleted + ' vacated resident(s).')}`;
   } catch (e) {
     deleteModalError.textContent = 'Request failed — check your connection and try again.';
     deleteModalError.style.display = 'block';

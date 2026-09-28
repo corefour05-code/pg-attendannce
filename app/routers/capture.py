@@ -1,5 +1,5 @@
-"""Shared face-capture validation endpoint used by Add/Edit Student and
-Add/Edit Faculty forms. Validates a single frame (face count/size/blur) but
+"""Shared face-capture validation endpoint used by Add/Edit Resident and
+Add/Edit Staff forms. Validates a single frame (face count/size/blur) but
 does NOT write to the DB — the final form submit re-validates and persists.
 """
 
