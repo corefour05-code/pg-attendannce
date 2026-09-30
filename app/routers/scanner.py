@@ -36,14 +36,10 @@ def _toggle_attendance(
 ) -> tuple[str, bool, bool, int]:
     """Toggle consecutive OUT/IN movement events with a 1-minute debounce cooldown.
     
-    For residents (who live in PG):
+    For both residents and staff:
     - First scan of any calendar day is ALWAYS 'OUT' (leaving the hostel).
     - If last scan today was 'OUT' -> next scan is 'IN' (returning).
     - If last scan today was 'IN' -> next scan is 'OUT' (leaving again).
-    
-    For staff:
-    - First scan of day is 'IN' (reporting for duty).
-    - If last scan today was 'IN' -> next is 'OUT'.
     
     Returns:
         (status, marked, cooldown_active, remaining_seconds)
@@ -58,8 +54,8 @@ def _toggle_attendance(
     ).fetchone()
 
     if last_today is None:
-        # First scan of today: residents always step OUT; staff report IN
-        next_direction = "OUT" if kind == "resident" else "IN"
+        # First scan of today: both residents and staff step OUT first
+        next_direction = "OUT"
     else:
         last_dt = _parse_punch_datetime(last_today["punch_time"])
         elapsed = (now - last_dt).total_seconds()
